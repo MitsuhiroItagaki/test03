@@ -495,11 +495,11 @@ def extract_performance_metrics_from_query_summary(profiler_data: Dict[str, Any]
             'cache_hit_ratio': cache_hit_ratio,
             'has_cache_miss': cache_hit_ratio < 0.8,
             'photon_efficiency': overall_metrics['photon_utilization_ratio'],
-            'has_shuffle_bottleneck': False,  # 詳細情報がないため判定不可
+            'has_shuffle_bottleneck': False,  # Cannot determine due to lack of detailed information
             'remote_read_ratio': 0,
             'has_memory_pressure': overall_metrics['spill_to_disk_bytes'] > 0,
-            'max_task_duration_ratio': 1.0,  # 不明
-            'has_data_skew': False  # 詳細情報がないため判定不可
+            'max_task_duration_ratio': 1.0,  # Unknown
+            'has_data_skew': False  # Cannot determine due to lack of detailed information
         }
         
         # Calculate remote read ratio
@@ -531,7 +531,7 @@ def extract_performance_metrics_from_query_summary(profiler_data: Dict[str, Any]
             'key_metrics': {
                 'durationMs': overall_metrics['total_time_ms'],
                 'rowsNum': overall_metrics['rows_read_count'],
-                'peakMemoryBytes': 0,  # 不明
+                'peakMemoryBytes': 0,  # Unknown
                 'throughputMBps': performance_insights['parallelization']['throughput_mb_per_second'],
                 'dataSelectivity': performance_insights['data_efficiency']['data_selectivity'],
                 'cacheHitRatio': performance_insights['cache_efficiency']['cache_hit_ratio']
@@ -563,10 +563,10 @@ def extract_performance_metrics_from_query_summary(profiler_data: Dict[str, Any]
             'overall_metrics': overall_metrics,
             'bottleneck_indicators': bottleneck_indicators,
             'node_metrics': [summary_node],
-            'stage_metrics': [],  # 詳細ステージ情報なし
-            'liquid_clustering_analysis': {},  # 後で追加
+            'stage_metrics': [],  # No detailed stage information
+            'liquid_clustering_analysis': {},  # To be added later
             'raw_profiler_data': profiler_data,
-            'performance_insights': performance_insights,  # 詳細なパフォーマンス洞察を追加
+            'performance_insights': performance_insights,  # Add detailed performance insights
             'analysis_capabilities': [
                 'Metrics-based bottleneck analysis (cache efficiency, filter rate, Photon efficiency)',
                 'Resource usage analysis (spill, parallelization efficiency, throughput)',
@@ -623,7 +623,7 @@ def extract_performance_metrics(profiler_data: Dict[str, Any]) -> Dict[str, Any]
         "node_metrics": [],
         "bottleneck_indicators": {},
         "liquid_clustering_analysis": {},
-        "raw_profiler_data": profiler_data  # プラン分析のために生データを保存
+        "raw_profiler_data": profiler_data  # Save raw data for plan analysis
     }
     
     # Basic query information
@@ -677,7 +677,7 @@ def extract_performance_metrics(profiler_data: Dict[str, Any]) -> Dict[str, Any]
                         "num_complete_tasks": stage.get('numCompleteTasks', 0),
                         "start_time_ms": stage.get('startTimeMs', 0),
                         "end_time_ms": stage.get('endTimeMs', 0),
-                        "graph_index": graph_index  # どのグラフ由来かを記録
+                        "graph_index": graph_index  # Record which graph this originates from
                     }
                     metrics["stage_metrics"].append(stage_metric)
             
@@ -692,10 +692,10 @@ def extract_performance_metrics(profiler_data: Dict[str, Any]) -> Dict[str, Any]
                             "node_id": node.get('id', ''),
                             "name": node.get('name', ''),
                             "tag": node.get('tag', ''),
-                            "key_metrics": key_metrics,  # 単位変換済みのkey_metrics
-                            "metrics": node.get('metrics', []),  # 元のmetrics配列を保持
-                            "metadata": node.get('metadata', []),  # metadataを追加
-                            "graph_index": graph_index  # どのグラフ由来かを記録
+                            "key_metrics": key_metrics,  # Unit-converted key_metrics
+                            "metrics": node.get('metrics', []),  # Retain original metrics array
+                            "metadata": node.get('metadata', []),  # Add metadata
+                            "graph_index": graph_index  # Record which graph this originates from
                         }
                         
                         # Extract only important metrics in detail (added spill-related keywords, label support)
@@ -721,8 +721,8 @@ def extract_performance_metrics(profiler_data: Dict[str, Any]) -> Dict[str, Any]
                                     'value': metric.get('value', 0),
                                     'label': metric_label,
                                     'type': metric.get('metricType', ''),
-                                    'original_key': metric_key,  # 元のキー名を保存
-                                    'display_name': metric_name  # 表示用の名前
+                                    'original_key': metric_key,  # Save original key name
+                                    'display_name': metric_name  # Display name
                                 }
                         node_metric['detailed_metrics'] = detailed_metrics
                         metrics["node_metrics"].append(node_metric)
@@ -791,7 +791,7 @@ def get_meaningful_node_name(node: Dict[str, Any], extracted_metrics: Dict[str, 
                 
                 try:
                     other_id_num = int(other_id) if other_id else None
-                    if other_id_num and abs(other_id_num - node_id_num) <= 10:  # 近隣10個以内
+                    if other_id_num and abs(other_id_num - node_id_num) <= 10:  # Within 10 nearby
                         if is_specific_process_name(other_name):
                             nearby_specific_nodes.append(other_name)
                 except:
@@ -883,9 +883,9 @@ def get_meaningful_node_name(node: Dict[str, Any], extracted_metrics: Dict[str, 
                         if len(parts) >= 2 and not any(part.isdigit() for part in parts[-2:]):
                             # Use full path (catalog.schema.table)
                             if len(parts) >= 3:
-                                table_name = '.'.join(parts)  # フルパス
+                                table_name = '.'.join(parts)  # Full path
                             else:
-                                table_name = value  # そのまま使用
+                                table_name = value  # Use as is
                             break
                 if table_name:
                     break
@@ -1017,13 +1017,13 @@ def get_most_specific_process_name_from_list(node_names: list) -> str:
 
 def extract_shuffle_attributes(node: Dict[str, Any]) -> list:
     """
-    ShuffleノードからSHUFFLE_ATTRIBUTESを抽出
+    Extract SHUFFLE_ATTRIBUTES from Shuffle node
     
     Args:
-        node: ノード情報
+        node: Node information
         
     Returns:
-        list: 検出されたShuffle attributes
+        list: Detected Shuffle attributes
     """
     shuffle_attributes = []
     
@@ -1071,13 +1071,13 @@ def extract_shuffle_attributes(node: Dict[str, Any]) -> list:
 
 def extract_cluster_attributes(node: Dict[str, Any]) -> list:
     """
-    スキャンノードからクラスタリングキー(SCAN_CLUSTERS)を抽出
+    Extract clustering keys (SCAN_CLUSTERS) from scan node
     
     Args:
-        node: ノード情報
+        node: Node information
         
     Returns:
-        list: 検出されたクラスタリングキー
+        list: Detected clustering keys
     """
     cluster_attributes = []
     
@@ -1125,7 +1125,7 @@ def extract_cluster_attributes(node: Dict[str, Any]) -> list:
 
 def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
     """
-    ノードから複数のTasks totalメトリクスとAQEShuffleReadメトリクスを抽出
+    Extract multiple Tasks total metrics and AQEShuffleRead metrics from node
     
     シャッフル操作などでは以下の複数のメトリクスが存在する可能性があります：
     - Tasks total
@@ -1135,7 +1135,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
     - AQEShuffleRead - Partition data size
     
     Args:
-        node: ノード情報
+        node: Node information
         
     Returns:
         dict: 検出されたメトリクス
@@ -1194,7 +1194,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                 elif pattern == "Source - Tasks total":
                     parallelism_metrics["source_tasks_total"] = metric_value
                 
-                # 全メトリクスリストに追加
+                # Add to all metrics list
                 parallelism_metrics["all_tasks_metrics"].append({
                     "name": pattern,
                     "value": metric_value
@@ -1209,7 +1209,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                 elif pattern == "AQEShuffleRead - Partition data size":
                     parallelism_metrics["aqe_shuffle_data_size"] = metric_value
                 
-                # 全メトリクスリストに追加
+                # Add to all metrics list
                 parallelism_metrics["aqe_shuffle_metrics"].append({
                     "name": pattern,
                     "value": metric_value
@@ -1227,7 +1227,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                 # 各Tasks totalパターンをチェック
                 for pattern in tasks_total_patterns:
                     if metric_key == pattern or metric_label == pattern:
-                        # 既にdetailed_metricsで見つかっている場合はスキップ
+                        # Skip if already found in detailed_metrics
                         if not any(m["name"] == pattern for m in parallelism_metrics["all_tasks_metrics"]):
                             # 特定のメトリクスにマッピング
                             if pattern == "Tasks total":
@@ -1237,7 +1237,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                             elif pattern == "Source - Tasks total":
                                 parallelism_metrics["source_tasks_total"] = metric_value
                             
-                            # 全メトリクスリストに追加
+                            # Add to all metrics list
                             parallelism_metrics["all_tasks_metrics"].append({
                                 "name": pattern,
                                 "value": metric_value
@@ -1246,7 +1246,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                 # AQEShuffleReadメトリクスをチェック
                 for pattern in aqe_shuffle_patterns:
                     if metric_key == pattern or metric_label == pattern:
-                        # 既にdetailed_metricsで見つかっている場合はスキップ
+                        # Skip if already found in detailed_metrics
                         if not any(m["name"] == pattern for m in parallelism_metrics["aqe_shuffle_metrics"]):
                             # 特定のメトリクスにマッピング
                             if pattern == "AQEShuffleRead - Number of partitions":
@@ -1254,7 +1254,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                             elif pattern == "AQEShuffleRead - Partition data size":
                                 parallelism_metrics["aqe_shuffle_data_size"] = metric_value
                             
-                            # 全メトリクスリストに追加
+                            # Add to all metrics list
                             parallelism_metrics["aqe_shuffle_metrics"].append({
                                 "name": pattern,
                                 "value": metric_value
@@ -1266,7 +1266,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
         for metric_key, metric_value in key_metrics.items():
             for pattern in tasks_total_patterns:
                 if metric_key == pattern:
-                    # 既に見つかっている場合はスキップ
+                    # Skip if already found
                     if not any(m["name"] == pattern for m in parallelism_metrics["all_tasks_metrics"]):
                         # 特定のメトリクスにマッピング
                         if pattern == "Tasks total":
@@ -1276,7 +1276,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                         elif pattern == "Source - Tasks total":
                             parallelism_metrics["source_tasks_total"] = metric_value
                         
-                        # 全メトリクスリストに追加
+                        # Add to all metrics list
                         parallelism_metrics["all_tasks_metrics"].append({
                             "name": pattern,
                             "value": metric_value
@@ -1285,7 +1285,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
             # AQEShuffleReadメトリクスをチェック
             for pattern in aqe_shuffle_patterns:
                 if metric_key == pattern:
-                    # 既に見つかっている場合はスキップ
+                    # Skip if already found
                     if not any(m["name"] == pattern for m in parallelism_metrics["aqe_shuffle_metrics"]):
                         # 特定のメトリクスにマッピング
                         if pattern == "AQEShuffleRead - Number of partitions":
@@ -1293,7 +1293,7 @@ def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
                         elif pattern == "AQEShuffleRead - Partition data size":
                             parallelism_metrics["aqe_shuffle_data_size"] = metric_value
                         
-                        # 全メトリクスリストに追加
+                        # Add to all metrics list
                         parallelism_metrics["aqe_shuffle_metrics"].append({
                             "name": pattern,
                             "value": metric_value
@@ -4668,7 +4668,7 @@ if final_sorted_nodes:
         if "shuffle" in short_name.lower():
             shuffle_attributes = extract_shuffle_attributes(node)
             if shuffle_attributes:
-                print(f"    🔄 Shuffle属性: {', '.join(shuffle_attributes)}")
+                print(f"    🔄 Shuffle attributes: {', '.join(shuffle_attributes)}")
                 
                 # REPARTITIONヒントの提案（スピルが検出された場合のみ）
                 if spill_detected and spill_bytes > 0 and spill_display:
@@ -4677,7 +4677,7 @@ if final_sorted_nodes:
                     # Shuffle属性で検出されたカラムを全て使用（完全一致）
                     repartition_columns = ", ".join(shuffle_attributes)
                     
-                    print(f"    💡 最適化提案: REPARTITION({suggested_partitions}, {repartition_columns})")
+                    print(f"    💡 Optimization suggestion: REPARTITION({suggested_partitions}, {repartition_columns})")
                     print(f"       Reason: To improve spill ({spill_display})")
                     print(f"       Target: Complete use of all {len(shuffle_attributes)} shuffle attribute columns")
             else:
@@ -4758,7 +4758,7 @@ if extracted_metrics['stage_metrics']:
             severity = "LOW"
         
         print(f"{i+1}. {status_icon}{parallelism_icon}{time_icon} Stage {stage_id} [{severity:8}]")
-        print(f"   ⏱️ 実行時間: {duration_ms:,} ms ({duration_ms/1000:.1f} sec)")
+        print(f"   ⏱️ Execution time: {duration_ms:,} ms ({duration_ms/1000:.1f} sec)")
         print(f"   🔧 Tasks: {complete_tasks}/{num_tasks} completed (failed: {failed_tasks})")
         
         # タスクあたりの平均時間
@@ -4769,7 +4769,7 @@ if extracted_metrics['stage_metrics']:
         # 効率性評価
         if num_tasks > 0:
             task_efficiency = "高効率" if num_tasks >= 10 and failed_tasks == 0 else "要改善" if failed_tasks > 0 else "標準"
-            print(f"   🎯 効率性: {task_efficiency}")
+            print(f"   🎯 Efficiency: {task_efficiency}")
         
         print()
     
@@ -4820,14 +4820,14 @@ print()
 
 # 🗂️ LLMによるLiquid Clustering分析結果の詳細表示
 print("\n" + "=" * 50)
-print("🤖 LLM Liquid Clustering推奨分析")
+print("🤖 LLM Liquid Clustering Recommendation Analysis")
 print("=" * 50)
 
 # LLMベースのLiquid Clustering分析を実行
 liquid_analysis = extracted_metrics['liquid_clustering_analysis']
 
 # LLM分析結果を表示
-print("\n🤖 LLM分析結果:")
+print("\n🤖 LLM Analysis Results:")
 print("=" * 50)
 llm_analysis = liquid_analysis.get('llm_analysis', '')
 if llm_analysis:
@@ -4850,9 +4850,9 @@ print(f"   📂 Scan nodes: {metadata_summary.get('scan_nodes_count', 0)} items"
 # パフォーマンスコンテキストの表示
 performance_context = liquid_analysis.get('performance_context', {})
 print(f"\n⚡ Performance information:")
-print(f"   ⏱️ 実行時間: {performance_context.get('total_time_sec', 0):.1f}秒")
+print(f"   ⏱️ Execution time: {performance_context.get('total_time_sec', 0):.1f} seconds")
 print(f"   💾 Data read: {performance_context.get('read_gb', 0):.2f}GB")
-print(f"   📊 出力行数: {performance_context.get('rows_produced', 0):,}行")
+print(f"   📊 Output rows: {performance_context.get('rows_produced', 0):,} rows")
 print(f"   🎯 Filter rate: {performance_context.get('data_selectivity', 0):.4f}")
 
 # Output analysis results to file
@@ -4878,7 +4878,7 @@ except Exception as e:
 # サマリー情報
 summary = liquid_analysis.get('summary', {})
 print(f"\n📋 Analysis summary:")
-print(f"   🔬 分析方法: {summary.get('analysis_method', 'Unknown')}")
+print(f"   🔬 Analysis method: {summary.get('analysis_method', 'Unknown')}")
 print(f"   🤖 LLM provider: {summary.get('llm_provider', 'Unknown')}")
 print(f"   📊 Target table count: {summary.get('tables_identified', 0)}")
 print(f"   📈 Extracted column count: Filter({summary.get('total_filter_columns', 0)}) + JOIN({summary.get('total_join_columns', 0)}) + GROUP BY({summary.get('total_groupby_columns', 0)})")
@@ -8063,7 +8063,7 @@ def summarize_explain_results_with_llm(explain_content: str, explain_cost_conten
             summary_text = str(summary_result)
         
         # 要約結果を分割して返す
-        print(f"✅ EXPLAIN + EXPLAIN COST要約完了: {len(summary_text):,} 文字")
+        print(f"✅ EXPLAIN + EXPLAIN COST summary completed: {len(summary_text):,} characters")
         
         # 🚨 DEBUG_ENABLED='Y'の場合、要約結果をファイルに保存
         debug_enabled = globals().get('DEBUG_ENABLED', 'N')
@@ -8595,24 +8595,24 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
         
         # 🎯 ベスト試行番号が指定されている場合、対応するファイルを優先選択
         if best_attempt_number is not None:
-            print(f"🎯 ベスト試行{best_attempt_number}のファイルを検索中...")
+            print(f"🎯 Searching for files from best attempt {best_attempt_number}...")
             
             # ベスト試行のファイルを検索
             best_explain_files = [f for f in explain_optimized_files if f"attempt_{best_attempt_number}" in f]
             best_cost_files = [f for f in cost_optimized_files if f"attempt_{best_attempt_number}" in f]
             
             if best_explain_files:
-                print(f"✅ ベスト試行{best_attempt_number}のEXPLAINファイルを発見: {best_explain_files[0]}")
+                print(f"✅ Found EXPLAIN file from best attempt {best_attempt_number}: {best_explain_files[0]}")
                 explain_files = best_explain_files
             else:
-                print(f"⚠️ ベスト試行{best_attempt_number}のEXPLAINファイルが見つかりません、最適化後を使用")
+                print(f"⚠️ EXPLAIN file from best attempt {best_attempt_number} not found, using post-optimization")
                 explain_files = explain_optimized_files if explain_optimized_files else explain_original_files
             
             if best_cost_files:
-                print(f"✅ ベスト試行{best_attempt_number}のEXPLAIN COSTファイルを発見: {best_cost_files[0]}")
+                print(f"✅ Found EXPLAIN COST file from best attempt {best_attempt_number}: {best_cost_files[0]}")
                 cost_files = best_cost_files
             else:
-                print(f"⚠️ ベスト試行{best_attempt_number}のEXPLAIN COSTファイルが見つかりません、最適化後を使用")
+                print(f"⚠️ EXPLAIN COST file from best attempt {best_attempt_number} not found, using post-optimization")
                 cost_files = cost_optimized_files if cost_optimized_files else cost_original_files
         else:
             # 従来ロジック: 最適化後を優先、なければオリジナル
@@ -8629,9 +8629,9 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
             try:
                 with open(latest_explain_file, 'r', encoding='utf-8') as f:
                     explain_content = f.read()
-                print(f"✅ EXPLAIN結果を読み込み: {latest_explain_file}")
+                print(f"✅ Loaded EXPLAIN results: {latest_explain_file}")
             except Exception as e:
-                print(f"⚠️ EXPLAIN結果の読み込みに失敗: {str(e)}")
+                print(f"⚠️ Failed to load EXPLAIN results: {str(e)}")
         else:
             # フォールバック: 古いファイル名パターンもチェック
             old_explain_files = glob.glob("output_explain_plan_*.txt")
@@ -8640,7 +8640,7 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
                 try:
                     with open(latest_explain_file, 'r', encoding='utf-8') as f:
                         explain_content = f.read()
-                        print(f"✅ 古い形式のEXPLAIN結果を読み込み: {latest_explain_file}")
+                        print(f"✅ Loaded legacy format EXPLAIN results: {latest_explain_file}")
                 except Exception as e:
                     print(f"⚠️ 古い形式EXPLAIN結果の読み込みに失敗: {str(e)}")
         
@@ -9193,14 +9193,14 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
         str: LLMで推敲された読みやすいレポート
     """
     
-    print("🤖 LLMによるレポート推敲を実行中...")
+    print("🤖 Executing LLM-based report refinement...")
     
     # 🚨 トークン制限対策: レポートサイズ制限
     MAX_REPORT_SIZE = 50000  # 50KB制限
     original_size = len(raw_report)
     
     if original_size > MAX_REPORT_SIZE:
-        print(f"⚠️ レポートサイズが大きすぎます: {original_size:,} 文字 → {MAX_REPORT_SIZE:,} 文字に切り詰め")
+        print(f"⚠️ Report size too large: {original_size:,} characters → truncated to {MAX_REPORT_SIZE:,} characters")
         # 重要セクションを優先的に保持
         truncated_report = raw_report[:MAX_REPORT_SIZE]
         truncated_report += f"\n\n⚠️ レポートが大きすぎるため、{MAX_REPORT_SIZE:,} 文字に切り詰められました（元サイズ: {original_size:,} 文字）"
@@ -9363,7 +9363,7 @@ Please refine according to the above heading structure and output a report that 
             
             if is_error_response:
                 print(f"❌ Error detected in LLM report refinement: {refined_report[:200]}...")
-                print("📄 元のレポートを返します")
+                print("📄 Returning original report")
                 return raw_report
         
         # thinking_enabled対応
@@ -9375,12 +9375,12 @@ Please refine according to the above heading structure and output a report that 
         signature_pattern = r"'signature':\s*'[A-Za-z0-9+/=]{100,}'"
         refined_report = re.sub(signature_pattern, "'signature': '[REMOVED]'", refined_report)
         
-        print(f"✅ LLMによるレポート推敲完了 (Query ID: {query_id})")
+        print(f"✅ LLM-based report refinement completed (Query ID: {query_id})")
         return refined_report
         
     except Exception as e:
-        print(f"⚠️ LLMによるレポート推敲中にエラーが発生しました: {str(e)}")
-        print("📄 元のレポートを返します")
+        print(f"⚠️ Error occurred during LLM-based report refinement: {str(e)}")
+        print("📄 Returning original report")
         return raw_report
 
 def validate_and_fix_sql_syntax(sql_query: str) -> str:
@@ -9509,7 +9509,7 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
         
         # 重複削除
         broadcast_tables = list(set(broadcast_tables))
-        print(f"📋 BROADCAST対象: {', '.join(broadcast_tables)}")
+        print(f"📋 BROADCAST targets: {', '.join(broadcast_tables)}")
         
         # JOIN句内のBROADCASTヒントを削除
         fixed_query = re.sub(
@@ -9570,10 +9570,10 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
                     flags=re.IGNORECASE | re.MULTILINE
                 )
             
-            print(f"✅ BROADCASTヒントを正しい位置に移動完了")
+            print(f"✅ Completed moving BROADCAST hints to correct positions")
             return fixed_query
         else:
-            print("⚠️ メインクエリのSELECT文が見つからない、元のクエリを返す")
+            print("⚠️ Main query SELECT statement not found, returning original query")
             return sql_query
             
     except Exception as e:
@@ -9589,7 +9589,7 @@ def enhance_error_correction_with_syntax_validation(corrected_query: str, origin
     
     try:
         # 修正されたクエリの後処理
-        print("🔧 修正クエリの後処理を実行中...")
+        print("🔧 Executing post-processing of corrected query...")
         
         # JOIN句内のBROADCAST配置の強制修正
         final_query = fix_join_broadcast_hint_placement(corrected_query)
@@ -9602,18 +9602,18 @@ def enhance_error_correction_with_syntax_validation(corrected_query: str, origin
             import re
             join_broadcast_pattern = r'JOIN\s+/\*\+\s*BROADCAST\([^)]+\)\s*\*/'
             if re.search(join_broadcast_pattern, final_query, re.IGNORECASE | re.MULTILINE):
-                print("🚨 修正後でもJOIN句内にBROADCASTヒントが残存、元クエリを使用")
+                print("🚨 BROADCAST hints still remain in JOIN clauses after correction, using original query")
                 return f"""-- ❌ PARSE_SYNTAX_ERROR修正失敗のため、元のクエリを使用
 -- 📋 エラー内容: {error_info[:200]}
 -- 💡 推奨: 手動でBROADCASTヒントの配置を修正してください
 
 {original_query}"""
         
-        print("✅ 修正クエリの検証完了")
+        print("✅ Corrected query validation completed")
         return final_query
         
     except Exception as e:
-        print(f"⚠️ 修正後検証でエラー: {str(e)}")
+        print(f"⚠️ Error in post-correction validation: {str(e)}")
         print("🔄 安全のため元クエリを使用")
         return f"""-- ❌ エラー修正検証中にエラーが発生、元のクエリを使用
 -- 📋 検証エラー: {str(e)}
@@ -9808,7 +9808,7 @@ def fix_common_ambiguous_references(sql_query: str) -> str:
     """
     【廃止】正規表現による修正は廃止 - LLMによる高度な修正に完全依存
     """
-    print("🚫 正規表現による事前修正は廃止: LLMによる高度な修正に依存")
+    print("🚫 Regex-based pre-correction discontinued: Relying on advanced LLM-based correction")
     return sql_query
 
 
@@ -10186,7 +10186,7 @@ def demonstrate_execution_plan_size_extraction():
     """
     実行プランからのサイズ推定機能のデモンストレーション
     """
-    print("🧪 実行プランからのテーブルサイズ推定機能のデモ")
+    print("🧪 Demo of table size estimation feature from execution plan")
     print("-" * 50)
     
     # サンプルのプロファイラーデータ構造
@@ -10220,7 +10220,7 @@ def demonstrate_execution_plan_size_extraction():
         }
     }
     
-    print("📊 サンプル実行プラン:")
+    print("📊 Sample execution plan:")
     print("  • orders テーブル: estimatedSizeInBytes = 10,485,760 (10MB)")
     print("  • customers テーブル: estimatedSizeInBytes = 52,428,800 (50MB)")
     print("")
@@ -10228,32 +10228,32 @@ def demonstrate_execution_plan_size_extraction():
     # テーブルサイズ推定の実行
     table_size_estimates = extract_table_size_estimates_from_plan(sample_profiler_data)
     
-    print("🔍 抽出されたテーブルサイズ推定:")
+    print("🔍 Extracted table size estimations:")
     if table_size_estimates:
         for table_name, size_info in table_size_estimates.items():
             print(f"  📋 {table_name}:")
-            print(f"    - サイズ: {size_info['estimated_size_mb']:.1f}MB")
-            print(f"    - 信頼度: {size_info['confidence']}")
-            print(f"    - ソース: {size_info['source']}")
+            print(f"    - Size: {size_info['estimated_size_mb']:.1f}MB")
+            print(f"    - Confidence: {size_info['confidence']}")
+            print(f"    - Source: {size_info['source']}")
             if 'num_files' in size_info:
-                print(f"    - ファイル数: {size_info['num_files']}")
+                print(f"    - File count: {size_info['num_files']}")
             if 'num_partitions' in size_info:
-                print(f"    - パーティション数: {size_info['num_partitions']}")
+                print(f"    - Partition count: {size_info['num_partitions']}")
             print("")
     else:
-        print("  ⚠️ テーブルサイズ推定情報が抽出されませんでした")
+        print("  ⚠️ Table size estimation information could not be extracted")
     
-    print("💡 BROADCAST分析への影響:")
+    print("💡 Impact on BROADCAST analysis:")
     if table_size_estimates:
         for table_name, size_info in table_size_estimates.items():
             size_mb = size_info['estimated_size_mb']
             if size_mb <= 30:
-                print(f"  ✅ {table_name}: {size_mb:.1f}MB ≤ 30MB → BROADCAST推奨")
+                print(f"  ✅ {table_name}: {size_mb:.1f}MB ≤ 30MB → BROADCAST recommended")
             else:
                 print(f"  ❌ {table_name}: {size_mb:.1f}MB > 30MB → BROADCAST not recommended")
     
     print("")
-    print("🎯 従来の推定方法との比較:")
+    print("🎯 Comparison with conventional estimation methods:")
     print("  📈 従来: メトリクスベースの間接推定（推定精度: 中）")
     print("  ❌ New feature: Utilizing estimatedSizeInBytes from execution plan (disabled due to unavailability)")
     print("  ℹ️ 現在: 3.0倍圧縮率での保守的推定を採用")
@@ -10276,18 +10276,18 @@ print("✅ 関数定義完了: SQL最適化関連関数（実行プランサイ�
 
 # 🚀 SQLクエリ最適化の実行
 print("\n" + "🚀" * 20)
-print("🔧 【SQLクエリ最適化の実行】")
+print("🔧 【SQL Query Optimization Execution】")
 print("🚀" * 20)
 
 # 1. オリジナルクエリの抽出
-print("\n📋 ステップ1: オリジナルクエリの抽出")
+print("\n📋 Step 1: Extract Original Query")
 print("-" * 40)
 
 original_query = extract_original_query_from_profiler_data(profiler_data)
 
 if original_query:
-    print(f"✅ オリジナルクエリを抽出しました ({len(original_query)} 文字)")
-    print(f"🔍 クエリプレビュー:")
+    print(f"✅ Original query extracted ({len(original_query)} characters)")
+    print(f"🔍 Query preview:")
     # 64KB (65536文字) まで表示
     max_display_chars = 65536
     if len(original_query) > max_display_chars:
@@ -10296,8 +10296,8 @@ if original_query:
         preview = original_query
     print(f"   {preview}")
 else:
-    print("⚠️ オリジナルクエリが見つかりませんでした")
-    print("   手動でクエリを設定してください")
+    print("⚠️ Original query not found")
+    print("   Please set the query manually")
     
     # フォールバック: サンプルクエリを設定
     original_query = """
@@ -10312,10 +10312,10 @@ else:
     ORDER BY total_amount DESC
     LIMIT 100
     """
-    print(f"📝 サンプルクエリを設定しました")
+    print(f"📝 Sample query has been set")
 
 # 📁 オリジナルクエリをファイルに保存
-print("\n📁 オリジナルクエリのファイル保存")
+print("\n📁 Saving original query to file")
 print("-" * 40)
 
 from datetime import datetime
@@ -10348,10 +10348,10 @@ try:
         if not original_query.endswith('\n'):
             f.write('\n')
     
-    print(f"✅ オリジナルクエリを保存: {original_query_filename}")
-    print(f"📊 保存したクエリ文字数: {len(original_query):,}")
-    print(f"💾 ファイルパス: ./{original_query_filename}")
-    print("📌 このファイルはDEBUG_ENABLED設定に関係なく最終アウトプットとして保持されます")
+    print(f"✅ Original query saved: {original_query_filename}")
+    print(f"📊 Saved query character count: {len(original_query):,}")
+    print(f"💾 File path: ./{original_query_filename}")
+    print("📌 This file is retained as final output regardless of DEBUG_ENABLED setting")
     
 except Exception as e:
     print(f"❌ Failed to save original query file: {str(e)}")
@@ -13080,7 +13080,7 @@ def refine_report_content_with_llm(report_content: str) -> str:
             
             if is_error_response:
                 print(f"❌ Error detected in LLM report refinement: {refined_content[:200]}...")
-                print("📄 元のレポートを返します")
+                print("📄 Returning original report")
                 return report_content
         
         # thinking_enabled対応: 結果がリストの場合の処理
