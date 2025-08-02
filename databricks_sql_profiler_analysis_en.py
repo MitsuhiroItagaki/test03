@@ -6245,7 +6245,7 @@ def apply_token_limit_optimization(extracted: Dict[str, Any], max_joins: int = 5
         if remaining_count > 0:
             summary_join = {
                 "type": "SUMMARY",
-                "condition": f"その他{remaining_count}個のJOIN操作（詳細省略）",
+                "condition": f"Other {remaining_count} JOIN operations (details omitted)",
                 "size": "multiple",
                 "rows": "multiple"
             }
@@ -10982,14 +10982,14 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         
         # 🎯 明確な悪化判定（境界値の曖昧さを排除）
         if comparison_result['total_cost_ratio'] > COST_DEGRADATION_THRESHOLD:
-            degradation_factors.append(f"総実行コスト悪化: {comparison_result['total_cost_ratio']:.2f}倍（閾値: {COST_DEGRADATION_THRESHOLD:.2f}）")
+            degradation_factors.append(f"Total execution cost degradation: {comparison_result['total_cost_ratio']:.2f}x (threshold: {COST_DEGRADATION_THRESHOLD:.2f})")
             
         if comparison_result['memory_usage_ratio'] > MEMORY_DEGRADATION_THRESHOLD:
-            degradation_factors.append(f"メモリ使用量悪化: {comparison_result['memory_usage_ratio']:.2f}倍（閾値: {MEMORY_DEGRADATION_THRESHOLD:.2f}）")
+            degradation_factors.append(f"Memory usage degradation: {comparison_result['memory_usage_ratio']:.2f}x (threshold: {MEMORY_DEGRADATION_THRESHOLD:.2f})")
         
-        # JOIN操作数の大幅増加チェック
+        # Check for significant JOIN operations count increase
         if (optimized_metrics['join_operations'] > original_metrics['join_operations'] * 1.5):
-            degradation_factors.append(f"JOIN操作数増加: {original_metrics['join_operations']} → {optimized_metrics['join_operations']}")
+            degradation_factors.append(f"JOIN operations count increase: {original_metrics['join_operations']} → {optimized_metrics['join_operations']}")
         
         # 悪化判定
         if degradation_factors:
@@ -11004,32 +11004,32 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             # 🚨 厳格な詳細判定（ユーザー要求：保守的アプローチ）
             # 実行コストの詳細判定
             if comparison_result['total_cost_ratio'] < COST_IMPROVEMENT_THRESHOLD:
-                performance_factors.append(f"実行コスト改善: {(1-comparison_result['total_cost_ratio'])*100:.1f}%削減")
+                performance_factors.append(f"Execution cost improvement: {(1-comparison_result['total_cost_ratio'])*100:.1f}% reduction")
             elif comparison_result['total_cost_ratio'] > COST_DEGRADATION_THRESHOLD:  # 1%以上の増加で即座に悪化判定
                 cost_increase_pct = (comparison_result['total_cost_ratio']-1)*100
-                performance_factors.append(f"実行コスト増加: {cost_increase_pct:.1f}%増加（元クエリ推奨）")
+                performance_factors.append(f"Execution cost increase: {cost_increase_pct:.1f}% increase (original query recommended)")
             else:
-                performance_factors.append(f"実行コスト同等: {comparison_result['total_cost_ratio']:.2f}倍（変化なし）")
+                performance_factors.append(f"Execution cost equivalent: {comparison_result['total_cost_ratio']:.2f}x (no change)")
                 
             # メモリ使用量の詳細判定
             if comparison_result['memory_usage_ratio'] < MEMORY_IMPROVEMENT_THRESHOLD:
-                performance_factors.append(f"メモリ使用量改善: {(1-comparison_result['memory_usage_ratio'])*100:.1f}%削減")
+                performance_factors.append(f"Memory usage improvement: {(1-comparison_result['memory_usage_ratio'])*100:.1f}% reduction")
             elif comparison_result['memory_usage_ratio'] > MEMORY_DEGRADATION_THRESHOLD:  # 1%以上の増加で即座に悪化判定
                 memory_increase_pct = (comparison_result['memory_usage_ratio']-1)*100
-                performance_factors.append(f"メモリ使用量増加: {memory_increase_pct:.1f}%増加（元クエリ推奨）")
+                performance_factors.append(f"Memory usage increase: {memory_increase_pct:.1f}% increase (original query recommended)")
             else:
-                performance_factors.append(f"メモリ使用量同等: {comparison_result['memory_usage_ratio']:.2f}倍（変化なし）")
+                performance_factors.append(f"Memory usage equivalent: {comparison_result['memory_usage_ratio']:.2f}x (no change)")
             
             # JOIN効率化チェック
             if optimized_metrics['join_operations'] < original_metrics['join_operations']:
-                performance_factors.append(f"JOIN効率化: {original_metrics['join_operations']} → {optimized_metrics['join_operations']}操作")
+                performance_factors.append(f"JOIN optimization: {original_metrics['join_operations']} → {optimized_metrics['join_operations']} operations")
             elif optimized_metrics['join_operations'] > original_metrics['join_operations']:
-                performance_factors.append(f"JOIN操作増加: {original_metrics['join_operations']} → {optimized_metrics['join_operations']}操作（軽微）")
+                performance_factors.append(f"JOIN operations increase: {original_metrics['join_operations']} → {optimized_metrics['join_operations']} operations (minor)")
             
             # 🚨 厳格な総合判定（ユーザー要求：明確な改善のみ成功）
-            has_improvement = any("改善" in factor for factor in performance_factors)
-            has_cost_increase = any("実行コスト増加" in factor for factor in performance_factors)
-            has_memory_increase = any("メモリ使用量増加" in factor for factor in performance_factors)
+            has_improvement = any("improvement" in factor for factor in performance_factors)
+            has_cost_increase = any("cost increase" in factor for factor in performance_factors)
+            has_memory_increase = any("memory increase" in factor for factor in performance_factors)
             
             # 🚨 明確な改善検出（1%以上の改善のみ）
             has_significant_improvement = (
@@ -11045,7 +11045,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             
             # 🚨 厳格判定：1%以上の増加でも元クエリ推奨
             if has_cost_increase or has_memory_increase:
-                performance_factors.insert(0, "❌ パフォーマンス増加を検出（元クエリ推奨）")
+                performance_factors.insert(0, "❌ Performance degradation detected (original query recommended)")
                 # 🚨 増加検出時は推奨も元クエリに変更
                 comparison_result['performance_degradation_detected'] = True
                 comparison_result['is_optimization_beneficial'] = False  
@@ -11057,15 +11057,15 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 cost_reduction = (1 - comparison_result['total_cost_ratio']) * 100
                 memory_reduction = (1 - comparison_result['memory_usage_ratio']) * 100
                 max_reduction = max(cost_reduction, memory_reduction)
-                performance_factors.insert(0, f"🚀 大幅なパフォーマンス改善を確認（最大{max_reduction:.1f}%削減・最適化クエリ推奨）")
+                performance_factors.insert(0, f"🚀 Significant performance improvement confirmed (max {max_reduction:.1f}% reduction - optimized query recommended)")
                 comparison_result['significant_improvement_detected'] = True
                 comparison_result['substantial_improvement_detected'] = True
             elif has_significant_improvement:
-                performance_factors.insert(0, "✅ 明確なパフォーマンス改善を確認（最適化クエリ推奨）")
+                performance_factors.insert(0, "✅ Clear performance improvement confirmed (optimized query recommended)")
                 comparison_result['significant_improvement_detected'] = True
                 comparison_result['substantial_improvement_detected'] = False
             else:
-                performance_factors.insert(0, "➖ パフォーマンス同等（明確な改善なし）")
+                performance_factors.insert(0, "➖ Performance equivalent (no clear improvement)")
                 comparison_result['significant_improvement_detected'] = False
                 comparison_result['substantial_improvement_detected'] = False
             
@@ -11121,10 +11121,10 @@ def analyze_degradation_causes(performance_comparison: Dict[str, Any], original_
         for detail in details:
             detail_str = str(detail).lower()
             
-            # JOIN操作数の大幅増加検出
-            if 'join操作数増加' in detail_str or 'join' in detail_str:
+            # Detect significant JOIN operations count increase
+            if 'join operations count increase' in detail_str or 'join' in detail_str:
                 degradation_analysis['primary_cause'] = 'excessive_joins'
-                degradation_analysis['specific_issues'].append('JOIN操作数の大幅増加')
+                degradation_analysis['specific_issues'].append('Significant JOIN operations count increase')
                 
                 # JOIN数の具体的な増加を解析
                 import re
@@ -11146,22 +11146,22 @@ def analyze_degradation_causes(performance_comparison: Dict[str, Any], original_
                             "CTE展開によるJOIN増加を避け、元の構造を保持してください"
                         ])
                 
-            # 総実行コスト悪化
-            elif '総実行コスト悪化' in detail_str or 'コスト' in detail_str:
+            # Total execution cost degradation
+            elif 'total execution cost degradation' in detail_str or 'cost' in detail_str:
                 if degradation_analysis['primary_cause'] == 'unknown':
                     degradation_analysis['primary_cause'] = 'cost_increase'
-                degradation_analysis['specific_issues'].append('総実行コストの悪化')
+                degradation_analysis['specific_issues'].append('Total execution cost degradation')
                 degradation_analysis['fix_instructions'].extend([
                     "小テーブルを効率的にJOINで処理してください",
                                          "大きなテーブルのJOIN順序を最適化してください",
                     "REPARTITIONヒントの配置位置を見直してください"
                 ])
             
-            # メモリ使用量悪化
-            elif 'メモリ使用量悪化' in detail_str or 'メモリ' in detail_str:
+            # Memory usage degradation
+            elif 'memory usage degradation' in detail_str or 'memory' in detail_str:
                 if degradation_analysis['primary_cause'] == 'unknown':
                     degradation_analysis['primary_cause'] = 'memory_increase'
-                degradation_analysis['specific_issues'].append('メモリ使用量の悪化')
+                degradation_analysis['specific_issues'].append('Memory usage degradation')
                 degradation_analysis['fix_instructions'].extend([
                     "大きなテーブルのBROADCAST適用を削除してください",
                     "メモリ効率的なJOIN戦略を選択してください",
