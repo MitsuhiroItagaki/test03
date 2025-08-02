@@ -12716,13 +12716,13 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 max_optimization_attempts=max_optimization_attempts
             )            
             # 結果の表示
-            print(f"\n📊 最終結果: {retry_result['final_status']}")
-            print(f"🔄 総試行回数: {retry_result['total_attempts']}")
+            print(f"\n📊 Final result: {retry_result['final_status']}")
+            print(f"🔄 Total attempts: {retry_result['total_attempts']}")
             
             # 反復最適化の試行詳細表示
             if 'optimization_attempts' in retry_result:
                 attempts = retry_result['optimization_attempts']
-                print(f"📈 最適化試行詳細: {len(attempts)}回")
+                print(f"📈 Optimization attempt details: {len(attempts)} times")
                 for attempt in attempts:
                     status_icon = {
                         'success': '✅',
@@ -12731,21 +12731,21 @@ elif original_query_for_explain and original_query_for_explain.strip():
                         'explain_failed': '⚠️',
                         'comparison_error': '🔧'
                     }.get(attempt['status'], '❓')
-                    print(f"   {status_icon} 試行{attempt['attempt']}: {attempt['status']}")
+                    print(f"   {status_icon} Attempt {attempt['attempt']}: {attempt['status']}")
                     if 'cost_ratio' in attempt and attempt['cost_ratio'] is not None:
-                        print(f"      💰 コスト比: {attempt['cost_ratio']:.2f}倍")
+                        print(f"      💰 Cost ratio: {attempt['cost_ratio']:.2f}x")
             
             if retry_result['final_status'] in ['optimization_success', 'partial_success']:
-                print("✅ 最適化クエリのEXPLAIN実行に成功しました！")
+                print("✅ Successfully executed EXPLAIN for optimized query!")
                 
                 # 成功時のファイル情報表示
                 explain_result = retry_result.get('explain_result', {})
                 if explain_result:
                     print("\n📁 生成されたファイル:")
                     if 'explain_file' in explain_result:
-                        print(f"   📄 EXPLAIN結果: {explain_result['explain_file']}")
+                        print(f"   📄 EXPLAIN results: {explain_result['explain_file']}")
                     if 'plan_lines' in explain_result:
-                        print(f"   📊 実行プラン行数: {explain_result['plan_lines']:,}")
+                        print(f"   📊 Execution plan lines: {explain_result['plan_lines']:,}")
                 
                 # 最適化されたクエリの保存
                 optimized_result = retry_result.get('optimized_result', '')
@@ -12764,14 +12764,14 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     best_attempt_number  # 🎯 ベスト試行番号（レポート用）
                 )
                 
-                print("\n📁 最適化ファイル:")
+                print("\n📁 Optimization files:")
                 for file_type, filename in saved_files.items():
                     print(f"   📄 {file_type}: {filename}")
                     
             elif retry_result['final_status'] == 'optimization_failed':
-                print("🚨 全ての最適化試行が失敗または悪化のため、元クエリを使用しました")
+                print("🚨 Using original query due to failure or degradation in all optimization attempts")
                 fallback_reason = retry_result.get('fallback_reason', 'Unknown reason')
-                print(f"🔧 失敗理由: {fallback_reason}")
+                print(f"🔧 Failure reason: {fallback_reason}")
                 
                 # 失敗詳細の表示
                 if 'optimization_attempts' in retry_result:
@@ -12780,29 +12780,29 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     error_count = sum(1 for a in attempts if a['status'] in ['llm_error', 'explain_failed'])
                     
                     if degraded_count > 0:
-                        print(f"📊 パフォーマンス悪化: {degraded_count}回")
+                        print(f"📊 Performance degradation: {degraded_count} times")
                     if error_count > 0:
-                        print(f"❌ エラー発生: {error_count}回")
+                        print(f"❌ Errors occurred: {error_count} times")
                 
-                print("💡 推奨事項:")
-                print("   - テーブル統計情報の更新を検討してください")
-                print("   - より詳細なEXPLAIN情報で手動最適化を検討してください")
-                print("   - データ量やクエリ複雑度を確認してください")
+                print("💡 Recommendations:")
+                print("   - Consider updating table statistics")
+                print("   - Consider manual optimization with more detailed EXPLAIN information")
+                print("   - Please check data volume and query complexity")
             
             elif retry_result['final_status'] == 'fallback_to_original':
-                print("⚠️ 最適化クエリでエラーが継続したため、元クエリを使用しました")
+                print("⚠️ Using original query due to persistent errors in optimized query")
             
             elif retry_result['final_status'] == 'llm_error':
-                print("❌ LLM API呼び出しでエラーが発生したため、元クエリを使用しました")
+                print("❌ Using original query due to LLM API call error")
                 error_details = retry_result.get('error_details', 'Unknown error')
-                print(f"🔧 LLMエラー詳細: {error_details[:200]}...")
-                print("💡 解決策: 入力データサイズを削減するか、LLM設定を調整してください")
+                print(f"🔧 LLM error details: {error_details[:200]}...")
+                print("💡 Solution: Reduce input data size or adjust LLM settings")
             
             elif retry_result['final_status'] == 'llm_error_correction_failed':
-                print("❌ エラー修正時にもLLMエラーが発生したため、元クエリを使用しました")
+                print("❌ Using original query due to LLM error even during error correction")
                 error_details = retry_result.get('error_details', 'Unknown error')
-                print(f"🔧 LLMエラー詳細: {error_details[:200]}...")
-                print("💡 解決策: 手動でSQL最適化を実行するか、シンプルなクエリで再試行してください")
+                print(f"🔧 LLM error details: {error_details[:200]}...")
+                print("💡 Solution: Execute manual SQL optimization or retry with simpler query")
                 
                 # フォールバック時のファイル情報表示
                 fallback_files = retry_result.get('fallback_files', {})
@@ -12812,41 +12812,41 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 for file_type, filename in fallback_files.items():
                     print(f"   📄 {file_type}: {filename}")
                 if failure_log:
-                    print(f"   📄 失敗ログ: {failure_log}")
+                    print(f"   📄 Failure log: {failure_log}")
                     
             # 全試行の詳細表示
-            print("\n📋 試行詳細:")
+            print("\n📋 Attempt details:")
             for attempt in retry_result.get('all_attempts', []):
                 status_icon = "✅" if attempt['status'] == 'success' else "❌"
-                print(f"   {status_icon} 試行 {attempt['attempt']}: {attempt['status']}")
+                print(f"   {status_icon} Attempt {attempt['attempt']}: {attempt['status']}")
                 if attempt['status'] == 'error':
-                    print(f"      エラー: {attempt['error_message'][:100]}...")
+                    print(f"      Error: {attempt['error_message'][:100]}...")
                     
         except Exception as e:
             print(f"❌ Error occurred during integrated processing: {str(e)}")
-            print("🚨 緊急エラーの詳細:")
+            print("🚨 Emergency error details:")
             import traceback
             traceback.print_exc()
-            print("   緊急フォールバック: 基本分析と最小限のファイル生成を実行します...")
+            print("   Emergency fallback: Executing basic analysis and minimal file generation...")
             
             try:
                 # フォールバック: 従来のEXPLAIN実行（オリジナルクエリ）
                 explain_results = execute_explain_and_save_to_file(original_query_for_explain, "original")
                 
                 if explain_results:
-                    print("\n📁 EXPLAIN結果:")
+                    print("\n📁 EXPLAIN results:")
                     for file_type, filename in explain_results.items():
                         if file_type == 'explain_file':
-                            print(f"   📄 EXPLAIN結果: {filename}")
+                            print(f"   📄 EXPLAIN results: {filename}")
                         elif file_type == 'error_file':
-                            print(f"   📄 エラーログ: {filename}")
+                            print(f"   📄 Error log: {filename}")
                         elif file_type == 'plan_lines':
-                            print(f"   📊 実行プラン行数: {filename}")
+                            print(f"   📊 Execution plan lines: {filename}")
                         elif file_type == 'error_message':
-                            print(f"   ❌ エラーメッセージ: {filename}")
+                            print(f"   ❌ Error message: {filename}")
                 
                 # 🚨 緊急修正: エラー時でもレポートファイルを強制生成
-                print("🚨 緊急レポート生成を実行中...")
+                print("🚨 Executing emergency report generation...")
                 emergency_saved_files = save_optimized_sql_files(
                     original_query_for_explain,
                     original_query_for_explain,  # 最適化失敗時は元クエリを使用
@@ -12856,13 +12856,13 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     None  # パフォーマンス比較結果なし
                 )
                 
-                print("\n📁 緊急生成ファイル:")
+                print("\n📁 Emergency generated files:")
                 for file_type, filename in emergency_saved_files.items():
                     print(f"   📄 {file_type}: {filename}")
                     
             except Exception as emergency_error:
-                print(f"🚨 緊急フォールバック処理でもエラー: {str(emergency_error)}")
-                print("⚠️ 手動でクエリを確認してください")
+                print(f"🚨 Error even in emergency fallback processing: {str(emergency_error)}")
+                print("⚠️ Please verify query manually")
         
         print("\n✅ 統合SQL最適化処理が完了しました")
         
@@ -12891,7 +12891,7 @@ print()
 # COMMAND ----------
 # 
 # 📝 レポート推敲処理（統合処理用）
-print("\n📝 レポート推敲処理")
+print("\n📝 Report refinement processing")
 print("-" * 40)
 # 
 def find_latest_report_file() -> str:
