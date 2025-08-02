@@ -2942,6 +2942,172 @@ print("✅ Function definition completed: analyze_liquid_clustering_opportunitie
 
 # COMMAND ----------
 
+def translate_explain_summary_to_english(explain_content: str) -> str:
+    """
+    EXPLAIN要約ファイルの日本語部分を英語に翻訳
+    
+    Args:
+        explain_content: EXPLAIN要約ファイルの内容
+    
+    Returns:
+        str: 英語版EXPLAIN要約
+    """
+    # 日本語から英語への翻訳マッピング
+    translation_map = {
+        # ヘッダー部分
+        "# EXPLAIN + EXPLAIN COST要約結果 (optimized)": "# EXPLAIN + EXPLAIN COST Summary Results (optimized)",
+        "## 📊 基本情報": "## 📊 Basic Information", 
+        "生成日時": "Generated",
+        "クエリタイプ": "Query Type",
+        "元サイズ": "Original Size",
+        "要約後サイズ": "Summary Size",
+        "圧縮率": "Compression Ratio",
+        "文字": "characters",
+        
+        # LLM要約結果
+        "## 🧠 LLM要約結果": "## 🧠 LLM Summary Results",
+        "# Databricks SQLクエリパフォーマンス分析": "# Databricks SQL Query Performance Analysis",
+        "## 📊 Physical Plan要約": "## 📊 Physical Plan Summary",
+        "### 主要な処理ステップ": "### Key Processing Steps",
+        "複数テーブルからのデータ取得": "Data retrieval from multiple tables",
+        "サブクエリ実行": "Subquery execution",
+        "平均売上を計算するサブクエリ": "Subquery calculating average sales",
+        "フィルタリング": "Filtering",
+        "平均売上を超える商品のフィルタリング": "Filtering products exceeding average sales",
+        "集計処理": "Aggregation processing",
+        "ブランド、クラス、カテゴリごとの売上集計": "Sales aggregation by brand, class, category",
+        "JOIN処理": "JOIN processing",
+        "複数のJOIN操作": "Multiple JOIN operations",
+        "が多用": "is frequently used",
+        "ソート": "Sorting",
+        "でのソート": "sorting by",
+        "最終結果を": "Final results to",
+        "行に制限": "rows limit",
+        
+        # JOIN方式とデータ移動
+        "### JOIN方式とデータ移動パターン": "### JOIN Methods and Data Movement Patterns",
+        "主要JOIN方式": "Primary JOIN Method",
+        "データ移動": "Data Movement",
+        "による効率的なデータ移動": "for efficient data movement",
+        "による集約処理": "for aggregation processing",
+        "によるデータ分散": "for data distribution",
+        "パーティション": "partitions",
+        
+        # Photon利用状況
+        "### Photon利用状況": "### Photon Usage Status",
+        "高度なPhoton活用": "Advanced Photon utilization",
+        "など多数のPhoton最適化演算子を使用": "and many other Photon optimization operators in use",
+        "実行時の最適化が有効": "Runtime optimization enabled",
+        
+        # 統計情報サマリー
+        "## 💰 統計情報サマリー": "## 💰 Statistics Summary",
+        "### テーブルサイズと行数": "### Table Size and Row Count",
+        "約": "approximately",
+        "億行": "billion rows",
+        "最終結果セット": "Final result set",
+        "適用後": "after application",
+        "中間結果": "Intermediate results",
+        "万行": "thousand rows",
+        "ソート前": "before sorting",
+        
+        # JOIN選択率とフィルタ効率
+        "### JOIN選択率とフィルタ効率": "### JOIN Selectivity and Filter Efficiency",
+        "フィルタ": "filter",
+        "年度条件": "Year condition",
+        "により、": "resulted in",
+        "行に絞り込み": "rows filtered",
+        "高効率": "high efficiency",
+        "サブクエリ結果": "Subquery result",
+        "平均売上計算のサブクエリは単一行を返却": "Average sales calculation subquery returns single row",
+        "メインクエリフィルタ": "Main query filter",
+        "平均売上を超える商品に絞り込み": "Filtered to products exceeding average sales",
+        "行に削減": "rows reduced to",
+        
+        # カラム統計
+        "### カラム統計": "### Column Statistics",
+        "種類の異なる値": "distinct values",
+        "の範囲": "range",
+        "数量": "quantity",
+        
+        # パーティション分散状況
+        "### パーティション分散状況": "### Partition Distribution Status",
+        "ハッシュパーティショニング": "Hash partitioning",
+        "に基づく": "based on",
+        "シングルパーティション": "Single partition",
+        "集約処理や最終結果の収集に使用": "Used for aggregation processing and final result collection",
+        
+        # パフォーマンス分析
+        "## ⚡ パフォーマンス分析": "## ⚡ Performance Analysis",
+        "### 実行コストの内訳": "### Execution Cost Breakdown",
+        "最もコストが高い操作": "Most expensive operation",
+        "からのスキャン": "table scan",
+        "サブクエリコスト": "Subquery cost",
+        "からのUNION ALL処理": "UNION ALL processing from",
+        "による集計コスト": "aggregation cost by",
+        
+        # ボトルネック分析
+        "### ボトルネックになりそうな操作": "### Operations Likely to Become Bottlenecks",
+        "大規模テーブルスキャン": "Large table scan",
+        "のスキャンが最大のボトルネック": "scan is the biggest bottleneck",
+        "複数テーブルUNION": "Multiple table UNION",
+        "での3つの販売テーブル": "3 sales tables in",
+        "の統合": "integration",
+        "シャッフル操作": "Shuffle operations",
+        "によるデータ再分散": "data redistribution by",
+        
+        # 最適化の余地
+        "### 最適化の余地がある箇所": "### Areas with Optimization Potential",
+        "パーティションプルーニング": "Partition pruning",
+        "のフィルタリングは効果的だが、さらに": "filtering is effective, but further",
+        "の販売テーブルのパーティション最適化が可能": "sales table partition optimization is possible",
+        "JOIN順序": "JOIN order",
+        "の順序最適化": "order optimization",
+        "フィルタプッシュダウン": "Filter pushdown",
+        "が使用されているが、さらに最適化の余地あり": "is used, but further optimization potential exists",
+        "カラム選択": "Column selection",
+        "必要なカラムのみを早期に選択することでデータ移動量を削減可能": "Data movement can be reduced by early selection of only necessary columns",
+        "メモリ使用量": "Memory usage",
+        "のビルド側のサイズ最適化": "build-side size optimization for",
+        
+        # 特記事項
+        "### 特記事項": "### Notable Points",
+        "活用": "utilization",
+        "クエリ全体で": "Throughout the query",
+        "最適化が効果的に適用されている": "optimization is effectively applied",
+        "統計情報": "Statistical information",
+        "が適切に収集されており、オプティマイザの判断に貢献": "is properly collected and contributes to optimizer decisions",
+        "動的フィルタリング": "Dynamic filtering",
+        "が適用され、不要なデータ読み込みを回避": "is applied to avoid unnecessary data reading",
+        "アダプティブ実行": "Adaptive execution",
+        "が有効で、実行時の最適化が期待できる": "is enabled, runtime optimization can be expected",
+        
+        # 結論
+        "このクエリは複雑なJOINと集計を含むが": "This query includes complex JOINs and aggregations, but",
+        "の効果的な使用により、比較的効率的に実行されると予測されます": "effective use is expected to execute relatively efficiently",
+        "最大のボトルネックは大規模テーブルのスキャンとデータ移動にあります": "The biggest bottlenecks are large table scans and data movement",
+        
+        # 統計情報抽出
+        "## 💰 統計情報抽出": "## 💰 Statistics Extraction",
+        "## 📊 統計情報サマリー（簡潔版）": "## 📊 Statistics Summary (Concise Version)",
+        "総統計項目数": "Total statistics items",
+        "個": "items",
+        "テーブル統計": "Table statistics", 
+        "パーティション情報": "Partition information",
+        "### 🎯 主要統計": "### 🎯 Key Statistics",
+        "📊 テーブルサイズ": "📊 Table Size",
+        "💡 詳細な統計情報は": "💡 Detailed statistics available with",
+        "で確認できます": "setting"
+    }
+    
+    # 翻訳を適用
+    translated_content = explain_content
+    for jp_text, en_text in translation_map.items():
+        translated_content = translated_content.replace(jp_text, en_text)
+    
+    return translated_content
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 🤖 LLM-powered Bottleneck Analysis Function
 # MAGIC
@@ -9110,6 +9276,36 @@ The following topics are analyzed for process evaluation:
         for jp_text, en_text in translation_map.items():
             optimization_strategy_en = optimization_strategy_en.replace(jp_text, en_text)
         
+        # EXPLAIN要約ファイルの読み込みと追加
+        explain_summary_section = ""
+        try:
+            # EXPLAIN要約ファイルを検索
+            explain_summary_files = glob.glob("output_explain_summary_optimized_*.md")
+            if explain_summary_files:
+                # 最新のファイルを選択
+                explain_summary_files.sort(reverse=True)
+                latest_explain_summary = explain_summary_files[0]
+                
+                # ファイル内容を読み込み
+                with open(latest_explain_summary, 'r', encoding='utf-8') as f:
+                    explain_content = f.read()
+                
+                # 英語版に翻訳
+                explain_content_en = translate_explain_summary_to_english(explain_content)
+                
+                explain_summary_section = f"""
+### 📋 Current Query Explain Output
+
+{explain_content_en}
+
+"""
+                print(f"✅ EXPLAIN summary integrated: {latest_explain_summary}")
+            else:
+                print("⚠️ No EXPLAIN summary files found")
+        except Exception as e:
+            print(f"⚠️ Error loading EXPLAIN summary: {str(e)}")
+            explain_summary_section = ""
+
         report += f"""
 ## 🚀 4. SQL Optimization Analysis Results
 
@@ -9121,7 +9317,7 @@ The following topics are analyzed for process evaluation:
 
 {formatted_sql_content}
 
-### 🔍 5. Performance Verification Results
+{explain_summary_section}### 🔍 5. Performance Verification Results
 
 {generate_performance_comparison_section(performance_comparison, language='en')}
 
