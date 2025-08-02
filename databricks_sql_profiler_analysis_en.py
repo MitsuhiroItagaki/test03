@@ -11830,7 +11830,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
     # LLMエラーチェック（重要）
     if isinstance(optimized_query, str) and optimized_query.startswith("LLM_ERROR:"):
         print("❌ Error occurred in LLM optimization, using original query")
-        print(f"🔧 Error details: {optimized_query[10:]}")  # "LLM_ERROR:"を除去
+        print(f"🔧 Error details: {optimized_query[10:]}")  # Remove "LLM_ERROR:"
         
         # エラー時は元のクエリを使用して即座にファイル生成
         fallback_result = save_optimized_sql_files(
@@ -11961,8 +11961,8 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             
             # 🚨 修正：else部分も無効化（二重実行防止）
             # else:
-            #     print("⚠️ EXPLAIN COST取得失敗のため、パフォーマンス比較をスキップ")
-            #     print("🔄 構文的に正常な最適化クエリを使用します")
+            #     print("⚠️ Skipping performance comparison due to EXPLAIN COST acquisition failure")
+#     print("🔄 Using syntactically valid optimized query")
             
             # 成功記録
             attempt_record = {
@@ -12080,7 +12080,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             # LLMエラーチェック（エラー修正時）
             if isinstance(corrected_query, str) and corrected_query.startswith("LLM_ERROR:"):
                 print("❌ LLM error occurred even in error correction, using original query")
-                print(f"🔧 Error details: {corrected_query[10:]}")  # "LLM_ERROR:"を除去
+                print(f"🔧 Error details: {corrected_query[10:]}")  # Remove "LLM_ERROR:"
                 
                 # 失敗記録
                 attempt_record = {
@@ -12741,7 +12741,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 # 成功時のファイル情報表示
                 explain_result = retry_result.get('explain_result', {})
                 if explain_result:
-                    print("\n📁 生成されたファイル:")
+                    print("\n📁 Generated files:")
                     if 'explain_file' in explain_result:
                         print(f"   📄 EXPLAIN results: {explain_result['explain_file']}")
                     if 'plan_lines' in explain_result:
@@ -12808,7 +12808,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 fallback_files = retry_result.get('fallback_files', {})
                 failure_log = retry_result.get('failure_log', '')
                 
-                print("\n📁 生成されたファイル:")
+                print("\n📁 Generated files:")
                 for file_type, filename in fallback_files.items():
                     print(f"   📄 {file_type}: {filename}")
                 if failure_log:
@@ -12864,15 +12864,15 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 print(f"🚨 Error even in emergency fallback processing: {str(emergency_error)}")
                 print("⚠️ Please verify query manually")
         
-        print("\n✅ 統合SQL最適化処理が完了しました")
+        print("\n✅ Integrated SQL optimization processing completed")
         
     else:
-        print("❌ Spark環境が利用できないため、EXPLAIN文は実行できません")
+        print("❌ EXPLAIN statements cannot be executed because Spark environment is not available")
         print("   Please execute in Databricks environment")
         
 else:
-    print("❌ 実行可能なオリジナルクエリが見つかりません")
-    print("   セル43でオリジナルクエリを抽出してから実行してください")
+    print("❌ No executable original query found")
+print("   Please execute Cell 43 (original query extraction) first")
 
 print()
 
@@ -13180,26 +13180,26 @@ try:
         print(f"   📄 Optimized query files: {len(sql_files)} files")
         print(f"   📄 Original query files: {len(original_files)} files")
         print(f"   📄 Report files ({language_suffix.upper()}): {len(current_lang_reports)} files")
-        print(f"   📄 レポートファイル（全体）: {len(all_reports)} 個")
+        print(f"   📄 Report files (total): {len(all_reports)} files")
         
         if all_reports:
-            print(f"   📋 検出されたレポートファイル:")
+            print(f"   📋 Detected report files:")
             for report in all_reports:
                 print(f"      - {report}")
-            print("   ⚠️ ファイルが存在するにも関わらず find_latest_report_file() で検出されていません")
-            print("   💡 手動でファイル名を確認し、パターンマッチングの問題の可能性があります")
+            print("   ⚠️ Files exist but not detected by find_latest_report_file()")
+            print("   💡 Please check filenames manually - possible pattern matching issue")
         
         if not sql_files and not original_files:
-            print("   🚨 重要: セル43の処理が全く実行されていない可能性があります")
-            print("   📋 対処法: セル43を最初から実行し直してください")
+            print("   🚨 Important: Cell 43 processing may not have been executed at all")
+            print("   📋 Solution: Re-execute Cell 43 from the beginning")
     else:
-        print(f"📄 対象レポートファイル: {latest_report}")
+        print(f"📄 Target report file: {latest_report}")
         
         # レポートファイルの内容を読み込み
         with open(latest_report, 'r', encoding='utf-8') as f:
             original_content = f.read()
         
-        print(f"📊 元レポートサイズ: {len(original_content):,} 文字")
+        print(f"📊 Original report size: {len(original_content):,} characters")
         
         # 🚨 重複推敲防止: 既に推敲済みかチェック
         refinement_indicators = [
@@ -13213,66 +13213,66 @@ try:
         already_refined = any(indicator in original_content for indicator in refinement_indicators)
         
         if already_refined:
-            print(f"✅ レポートは既に推敲済みです（重複処理を回避）: {latest_report}")
-            print("📋 推敲済みレポートをそのまま使用します")
+            print(f"✅ Report already refined (avoiding duplicate processing): {latest_report}")
+            print("📋 Using refined report as is")
             refined_content = original_content
         else:
-            print(f"🤖 LLMによる推敲を実行中 (対象: {latest_report})...")
+            print(f"🤖 Executing LLM-based refinement (target: {latest_report})...")
             refined_content = refine_report_content_with_llm(original_content)
         
         if refined_content != original_content:
-            print(f"📊 推敲後サイズ: {len(refined_content):,} 文字")
+            print(f"📊 Post-refinement size: {len(refined_content):,} characters")
             
             # 推敲されたレポートを保存
             refined_filename = save_refined_report(refined_content, latest_report)
             
             if refined_filename:
-                print(f"📄 推敲版レポート: {refined_filename}")
+                print(f"📄 Refined report: {refined_filename}")
                 
                 # ファイルサイズの確認
                 import os
                 if os.path.exists(refined_filename):
                     file_size = os.path.getsize(refined_filename)
-                    print(f"📁 推敲版ファイルサイズ: {file_size:,} bytes")
+                    print(f"📁 Refined file size: {file_size:,} bytes")
                 
                 # 元のファイルを削除し、推敲版ファイルを元のファイル名にリネーム
                 final_filename = finalize_report_files(latest_report, refined_filename)
                 
                 if final_filename:
-                    print(f"📄 最終レポートファイル: {final_filename}")
+                    print(f"📄 Final report file: {final_filename}")
                     
                     # 最終ファイルサイズの確認
                     if os.path.exists(final_filename):
                         final_file_size = os.path.getsize(final_filename)
-                        print(f"📁 最終ファイルサイズ: {final_file_size:,} bytes")
+                        print(f"📁 Final file size: {final_file_size:,} bytes")
                 
-                print(f"✅ レポート推敲処理が完了しました: {final_filename}")
+                print(f"✅ Report refinement processing completed: {final_filename}")
                 
                 # 推敲の結果を表示（最初の1000文字）
-                print("\n📋 推敲結果のプレビュー:")
+                print("\n📋 Refinement result preview:")
                 print("-" * 50)
                 preview = refined_content[:1000]
                 print(preview)
                 if len(refined_content) > 1000:
-                    print(f"\n... (残り {len(refined_content) - 1000} 文字は {final_filename or latest_report} を参照)")
+                    print(f"\n... (remaining {len(refined_content) - 1000} characters see {final_filename or latest_report})")
                 print("-" * 50)
             else:
-                print("❌ 推敲レポートの保存に失敗しました")
+                print("❌ Failed to save refined report")
         else:
-            print("📋 レポートは既に最適な状態です（推敲処理スキップ）")
-            print("✅ 既存レポートファイルをそのまま使用します")
+            print("📋 Report is already in optimal state (refinement processing skipped)")
+            print("✅ Using existing report file as is")
             
             # 既に推敲済みの場合もプレビューを表示
-            print("\n📋 レポート内容のプレビュー:")
+            print("\n📋 Report content preview:")
             print("-" * 50)
             preview = refined_content[:1000]
             print(preview)
             if len(refined_content) > 1000:
-                print(f"\n... (残り {len(refined_content) - 1000} 文字は {latest_report} を参照)")
+                print(f"\n... (remaining {len(refined_content) - 1000} characters see {latest_report})")
             print("-" * 50)
             
 except Exception as e:
-    print(f"❌ レポート推敲処理中にエラーが発生: {str(e)}")
+    print(f"❌ Error occurred during report refinement processing: {str(e)}")
     import traceback
     traceback.print_exc()
 # 
@@ -13301,22 +13301,22 @@ if debug_enabled.upper() == 'Y':
         all_files = original_files + optimized_files + cost_original_files + cost_optimized_files + error_files
         
         if all_files:
-            print(f"   🔍 EXPLAIN結果ファイル:")
-            print(f"      📊 EXPLAIN: オリジナル {len(original_files)} 個, 最適化後 {len(optimized_files)} 個")
-            print(f"      💰 EXPLAIN COST: オリジナル {len(cost_original_files)} 個, 最適化後 {len(cost_optimized_files)} 個")
-            print(f"      ❌ エラー: {len(error_files)} 個")
+            print(f"   🔍 EXPLAIN result files:")
+            print(f"      📊 EXPLAIN: Original {len(original_files)} files, Post-optimization {len(optimized_files)} files")
+            print(f"      💰 EXPLAIN COST: Original {len(cost_original_files)} files, Post-optimization {len(cost_optimized_files)} files")
+            print(f"      ❌ Errors: {len(error_files)} files")
             for file_path in all_files[:3]:  # 最大3個まで表示
                 print(f"      📄 {file_path}")
             if len(all_files) > 3:
-                print(f"      ... 他 {len(all_files) - 3} 個")
+                print(f"      ... and {len(all_files) - 3} other files")
     
-    print("✅ デバッグモード: ファイル削除処理をスキップしました")
+    print("✅ Debug mode: Skipped file deletion processing")
 else:
-    print("\n🧹 中間ファイルの削除処理")
+    print("\n🧹 Intermediate file deletion processing")
     print("-" * 40)
-    print("💡 DEBUG_ENABLED=N のため、中間ファイルを削除します")
+    print("💡 Deleting intermediate files because DEBUG_ENABLED=N")
     language_suffix = 'en' if OUTPUT_LANGUAGE == 'en' else 'jp'
-    print(f"📁 保持されるファイル: output_original_query_*.sql, output_optimization_report_{language_suffix}_*.md, output_optimized_query_*.sql")
+    print(f"📁 Files to be kept: output_original_query_*.sql, output_optimization_report_{language_suffix}_*.md, output_optimized_query_*.sql")
     
     import glob
     import os
@@ -13352,31 +13352,31 @@ else:
         debug_files = full_plan_files + full_stats_files + extracted_stats_files + structured_plan_files + structured_cost_files
         
         if all_temp_files:
-            print(f"📁 削除対象ファイル:")
-            print(f"   📊 EXPLAIN結果: {len(explain_files)} 個")
-            print(f"   💰 EXPLAIN COST結果: {len(cost_files)} 個")
-            print(f"   ❌ エラーファイル: {len(error_files)} 個")
-            print(f"   🔧 DEBUG完全情報: {len(debug_files)} 個")
-            print("💡 注意: DEBUG_ENABLED=N のため、これらのファイルは作成されていないはずです")
+            print(f"📁 Files to be deleted:")
+            print(f"   📊 EXPLAIN results: {len(explain_files)} files")
+            print(f"   💰 EXPLAIN COST results: {len(cost_files)} files")
+            print(f"   ❌ Error files: {len(error_files)} files")
+            print(f"   🔧 DEBUG complete information: {len(debug_files)} files")
+            print("💡 Note: These files should not have been created because DEBUG_ENABLED=N")
             
             # 🔧 変数の初期化をより安全に実行
             deleted_count = 0
             for file_path in all_temp_files:
                 try:
                     os.remove(file_path)
-                    print(f"✅ 削除完了: {file_path}")
+                    print(f"✅ Deletion completed: {file_path}")
                     deleted_count += 1
                 except Exception as e:
-                    print(f"❌ 削除失敗: {file_path} - {str(e)}")
+                    print(f"❌ Deletion failed: {file_path} - {str(e)}")
             
-            print(f"🗑️ 削除完了: {deleted_count}/{len(all_temp_files)} ファイル")
-            print("💡 EXPLAIN・EXPLAIN COST結果とエラーファイルはLLMによる最適化処理で使用済みのため削除しました")
+            print(f"🗑️ Deletion completed: {deleted_count}/{len(all_temp_files)} files")
+            print("💡 EXPLAIN/EXPLAIN COST results and error files deleted as they were already used by LLM optimization processing")
         else:
-            print("📁 削除対象のEXPLAIN・EXPLAIN COST結果・エラーファイルが見つかりませんでした")
+            print("📁 No EXPLAIN/EXPLAIN COST results or error files found for deletion")
     else:
-        print("⚠️ EXPLAIN実行が無効化されているため、EXPLAIN結果ファイルの削除処理をスキップしました")
+        print("⚠️ Skipped EXPLAIN result file deletion processing because EXPLAIN execution is disabled")
 
 print()
 
-print("🎉 すべての処理が完了しました！")
-print("📁 生成されたファイルを確認して、分析結果を活用してください。")
+print("🎉 All processing completed!")
+print("📁 Please check the generated files and utilize the analysis results.")
