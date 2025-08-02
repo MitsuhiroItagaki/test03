@@ -4841,9 +4841,9 @@ metadata_summary = extracted_data.get('metadata_summary', {})
 
 print(f"\n📊 Extracted data overview:")
 print(f"   🔍 Filter conditions: {metadata_summary.get('filter_expressions_count', 0)} items")
-print(f"   🔗 JOIN条件: {metadata_summary.get('join_expressions_count', 0)}個")
-print(f"   📊 GROUP BY条件: {metadata_summary.get('groupby_expressions_count', 0)}個")
-print(f"   📈 集約関数: {metadata_summary.get('aggregate_expressions_count', 0)}個")
+print(f"   🔗 JOIN conditions: {metadata_summary.get('join_expressions_count', 0)} items")
+print(f"   📊 GROUP BY conditions: {metadata_summary.get('groupby_expressions_count', 0)} items")
+print(f"   📈 Aggregate functions: {metadata_summary.get('aggregate_expressions_count', 0)} items")
 print(f"   🏷️ Identified tables: {metadata_summary.get('tables_identified', 0)} items")
 print(f"   📂 Scan nodes: {metadata_summary.get('scan_nodes_count', 0)} items")
 
@@ -8642,7 +8642,7 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
                         explain_content = f.read()
                         print(f"✅ Loaded legacy format EXPLAIN results: {latest_explain_file}")
                 except Exception as e:
-                    print(f"⚠️ 古い形式EXPLAIN結果の読み込みに失敗: {str(e)}")
+                    print(f"⚠️ Failed to load legacy format EXPLAIN results: {str(e)}")
         
         # EXPLAIN COST ファイル読み込み
         if cost_files:
@@ -8650,7 +8650,7 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
             try:
                 with open(latest_cost_file, 'r', encoding='utf-8') as f:
                     explain_cost_content = f.read()
-                    print(f"💰 包括レポート用EXPLAIN COST結果を読み込み: {latest_cost_file}")
+                    print(f"💰 Loaded EXPLAIN COST results for comprehensive report: {latest_cost_file}")
             except Exception as e:
                 print(f"⚠️ EXPLAIN COST結果の読み込みに失敗: {str(e)}")
         
@@ -9206,7 +9206,7 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
         truncated_report += f"\n\n⚠️ レポートが大きすぎるため、{MAX_REPORT_SIZE:,} 文字に切り詰められました（元サイズ: {original_size:,} 文字）"
         raw_report = truncated_report
     else:
-        print(f"📊 レポートサイズ: {original_size:,} 文字（推敲実行）")
+        print(f"📊 Report size: {original_size:,} characters (executing refinement)")
     
     # 言語に応じてプロンプトを切り替え
     if OUTPUT_LANGUAGE == 'ja':
@@ -9578,7 +9578,7 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
             
     except Exception as e:
         print(f"⚠️ JOIN BROADCAST配置修正でエラー: {str(e)}")
-        print("🔄 元のクエリを返します")
+        print("🔄 Returning original query")
         return sql_query
 
 
@@ -9614,7 +9614,7 @@ def enhance_error_correction_with_syntax_validation(corrected_query: str, origin
         
     except Exception as e:
         print(f"⚠️ Error in post-correction validation: {str(e)}")
-        print("🔄 安全のため元クエリを使用")
+        print("🔄 Using original query for safety")
         return f"""-- ❌ エラー修正検証中にエラーが発生、元のクエリを使用
 -- 📋 検証エラー: {str(e)}
 -- 📋 元のエラー: {error_info[:200]}
@@ -10158,7 +10158,7 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
         report_data = actual_sql_content
         
     except Exception as e:
-        print(f"⚠️ SQLファイル読み込み失敗、初回レスポンスを使用: {str(e)}")
+        print(f"⚠️ SQL file loading failed, using initial response: {str(e)}")
         # フォールバック: 初回レスポンスを使用
         report_data = llm_response if llm_response else optimized_result
     
@@ -10221,8 +10221,8 @@ def demonstrate_execution_plan_size_extraction():
     }
     
     print("📊 Sample execution plan:")
-    print("  • orders テーブル: estimatedSizeInBytes = 10,485,760 (10MB)")
-    print("  • customers テーブル: estimatedSizeInBytes = 52,428,800 (50MB)")
+    print("  • orders table: estimatedSizeInBytes = 10,485,760 (10MB)")
+    print("  • customers table: estimatedSizeInBytes = 52,428,800 (50MB)")
     print("")
     
     # テーブルサイズ推定の実行
@@ -10254,13 +10254,13 @@ def demonstrate_execution_plan_size_extraction():
     
     print("")
     print("🎯 Comparison with conventional estimation methods:")
-    print("  📈 従来: メトリクスベースの間接推定（推定精度: 中）")
+    print("  📈 Conventional: Metrics-based indirect estimation (estimation accuracy: medium)")
     print("  ❌ New feature: Utilizing estimatedSizeInBytes from execution plan (disabled due to unavailability)")
-    print("  ℹ️ 現在: 3.0倍圧縮率での保守的推定を採用")
+    print("  ℹ️ Current: Adopting conservative estimation with 3.0x compression ratio")
     
     return {}
 
-print("✅ 関数定義完了: SQL最適化関連関数（実行プランサイズ推定対応）")
+print("✅ Function definition completed: SQL optimization related functions (execution plan size estimation support)")
 
 # COMMAND ----------
 
@@ -10355,7 +10355,7 @@ try:
     
 except Exception as e:
     print(f"❌ Failed to save original query file: {str(e)}")
-    print("⚠️ 処理は続行しますが、オリジナルクエリファイルは作成されませんでした")
+    print("⚠️ Processing continues, but original query file was not created")
 
 # COMMAND ----------
 
@@ -10420,21 +10420,21 @@ def extract_select_from_ctas(query: str) -> str:
                 as_part = after_create[as_match.end():].strip()
                 
                 if as_part:
-                    print(f"✅ CTAS検出: AS以降の部分をEXPLAIN文に使用")
-                    print(f"📊 元のクエリ長: {len(query):,} 文字")
-                    print(f"📊 AS以降部分長: {len(as_part):,} 文字")
+                    print(f"✅ CTAS detected: Using part after AS for EXPLAIN statement")
+                    print(f"📊 Original query length: {len(query):,} characters")
+                    print(f"📊 Part after AS length: {len(as_part):,} characters")
                     
                     # WITH句で始まる場合やSELECT句で始まる場合を判定
                     if as_part.upper().startswith('WITH'):
-                        print("📋 WITH句で始まるクエリを検出")
+                        print("📋 Detected query starting with WITH clause")
                     elif as_part.upper().startswith('SELECT'):
-                        print("📋 SELECT句で始まるクエリを検出")
+                        print("📋 Detected query starting with SELECT clause")
                     else:
-                        print("📋 その他のクエリ形式を検出")
+                        print("📋 Detected other query format")
                     
                     return as_part
     
-    print("📋 通常のクエリ: そのままEXPLAIN文に使用")
+    print("📋 Regular query: Use as is for EXPLAIN statement")
     return query
 
 def generate_improved_query_for_performance_degradation(original_query: str, analysis_result: str, metrics: Dict[str, Any], degradation_analysis: Dict[str, Any], previous_optimized_query: str = "") -> str:
@@ -10585,7 +10585,7 @@ def generate_improved_query_for_performance_degradation(original_query: str, ana
             
             for indicator in error_indicators:
                 if indicator in improved_result:
-                    print(f"❌ LLMパフォーマンス改善でエラー検出: {indicator}")
+                    print(f"❌ Error detected in LLM performance improvement: {indicator}")
                     return f"LLM_ERROR: {improved_result}"
         
         return improved_result
@@ -10834,7 +10834,7 @@ FROM store_sales ss
             optimized_result = _call_anthropic_llm(error_feedback_prompt)
         else:
             error_msg = "⚠️ 設定されたLLMプロバイダーが認識できません"
-            print(f"❌ LLMエラー修正エラー: {error_msg}")
+            print(f"❌ LLM error correction error: {error_msg}")
             return f"LLM_ERROR: {error_msg}"
         
         # LLMレスポンスのエラーチェック（重要）
@@ -10856,12 +10856,12 @@ FROM store_sales ss
             is_error_response = any(indicator in optimized_result for indicator in error_indicators)
             
             if is_error_response:
-                print(f"❌ LLM エラー修正API呼び出しでエラーが発生: {optimized_result[:200]}...")
+                print(f"❌ Error occurred in LLM error correction API call: {optimized_result[:200]}...")
                 return f"LLM_ERROR: {optimized_result}"
         
         # 🔧 修正後のクエリに対してプログラマティック後処理を適用
         if isinstance(optimized_result, str) and not optimized_result.startswith("LLM_ERROR:"):
-            print("🔧 エラー修正後のクエリ検証・後処理を実行")
+            print("🔧 Executing query validation and post-processing after error correction")
             final_corrected_query = enhance_error_correction_with_syntax_validation(optimized_result, original_query, error_info)
             return final_corrected_query
         
@@ -10869,7 +10869,7 @@ FROM store_sales ss
         
     except Exception as e:
         error_msg = f"⚠️ エラー修正SQL生成中にエラーが発生しました: {str(e)}"
-        print(f"❌ LLMエラー修正例外エラー: {error_msg}")
+        print(f"❌ LLM error correction exception error: {error_msg}")
         return f"LLM_ERROR: {error_msg}"
 
 
@@ -11252,8 +11252,8 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
     """
     from datetime import datetime
     
-    print(f"\n🚀 反復的最適化プロセス開始（最大{max_optimization_attempts}回の改善試行）")
-    print("🎯 目標: 10%以上のコスト削減を達成 | 最大試行回数到達時は最良結果を選択")
+    print(f"\n🚀 Starting iterative optimization process (maximum {max_optimization_attempts} improvement attempts)")
+    print("🎯 Goal: Achieve 10%+ cost reduction | Select best result when maximum attempts reached")
     print("=" * 70)
     
     optimization_attempts = []
@@ -11271,7 +11271,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
     }
     
     for attempt_num in range(1, max_optimization_attempts + 1):
-        print(f"\n🔄 最適化試行 {attempt_num}/{max_optimization_attempts}")
+        print(f"\n🔄 Optimization attempt {attempt_num}/{max_optimization_attempts}")
         print("-" * 50)
         
         # 前回の試行結果に基づく修正指示を生成
@@ -11286,19 +11286,19 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     "【修正指示】"
                 ] + degradation_analysis['fix_instructions'])
                 
-                print(f"🔧 悪化原因分析結果: {degradation_analysis['primary_cause']}")
-                print(f"📊 信頼度: {degradation_analysis['confidence_level']}")
-                print(f"💡 修正指示: {len(degradation_analysis['fix_instructions'])}項目")
+                print(f"🔧 Degradation cause analysis result: {degradation_analysis['primary_cause']}")
+                print(f"📊 Confidence level: {degradation_analysis['confidence_level']}")
+                print(f"💡 Fix instructions: {len(degradation_analysis['fix_instructions'])} items")
         
         # 最適化クエリ生成（初回 or 修正版）
         if attempt_num == 1:
-            print("🤖 初回最適化クエリ生成")
+            print("🤖 Initial optimization query generation")
             optimized_query = generate_optimized_query_with_llm(original_query, analysis_result, metrics)
             # 🐛 DEBUG: 初回試行クエリを保存
             if isinstance(optimized_query, str) and not optimized_query.startswith("LLM_ERROR:"):
                 save_debug_query_trial(optimized_query, attempt_num, "initial")
         else:
-            print(f"🔧 修正版最適化クエリ生成（試行{attempt_num}）")
+            print(f"🔧 Corrected optimization query generation (attempt {attempt_num})")
             # 🚨 修正: パフォーマンス悪化専用関数を使用
             previous_attempt = optimization_attempts[-1] if optimization_attempts else {}
             degradation_analysis = previous_attempt.get('degradation_analysis', {})
@@ -11339,7 +11339,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         explain_result = execute_explain_with_retry_logic(current_query, analysis_result, metrics, max_retries=MAX_RETRIES)
         
         if explain_result['final_status'] != 'success':
-            print(f"⚠️ 試行{attempt_num}: EXPLAIN実行失敗")
+            print(f"⚠️ Attempt {attempt_num}: EXPLAIN execution failed")
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'explain_failed',
@@ -11349,12 +11349,12 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             continue
         
         # パフォーマンス比較実行
-        print(f"🔍 試行{attempt_num}: パフォーマンス悪化検出を実行")
+        print(f"🔍 Attempt {attempt_num}: Executing performance degradation detection")
         
         # 🎯 キャッシュされた元クエリを使用（重複処理防止）
         corrected_original_query = globals().get('original_query_corrected', original_query)
         if corrected_original_query != original_query:
-            print("💾 キャッシュされた元クエリを使用: 重複処理防止")
+            print("💾 Using cached original query: Preventing duplicate processing")
         
         # 元クエリのEXPLAIN COST取得
         original_explain_cost_result = execute_explain_and_save_to_file(corrected_original_query, "original_performance_check")
@@ -11372,30 +11372,30 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                                  'error_file' not in optimized_explain_cost_result)
         
         # 🚨 緊急デバッグ: EXPLAIN COST成功/失敗の詳細表示
-        print(f"🔍 EXPLAIN COST成功判定:")
+        print(f"🔍 EXPLAIN COST success determination:")
         print(f"   📊 Original query: {'✅ Success' if original_cost_success else '❌ Failed'}")
         if not original_cost_success:
-            print(f"      • explain_cost_file存在: {'explain_cost_file' in original_explain_cost_result}")
-            print(f"      • error_file存在: {'error_file' in original_explain_cost_result}")
-            print(f"      • 返却キー: {list(original_explain_cost_result.keys())}")
+            print(f"      • explain_cost_file exists: {'explain_cost_file' in original_explain_cost_result}")
+            print(f"      • error_file exists: {'error_file' in original_explain_cost_result}")
+            print(f"      • Return keys: {list(original_explain_cost_result.keys())}")
         print(f"   🔧 Optimized query: {'✅ Success' if optimized_cost_success else '❌ Failed'}")
         if not optimized_cost_success:
-            print(f"      • explain_cost_file存在: {'explain_cost_file' in optimized_explain_cost_result}")
-            print(f"      • error_file存在: {'error_file' in optimized_explain_cost_result}")
-            print(f"      • 返却キー: {list(optimized_explain_cost_result.keys())}")
+            print(f"      • explain_cost_file exists: {'explain_cost_file' in optimized_explain_cost_result}")
+            print(f"      • error_file exists: {'error_file' in optimized_explain_cost_result}")
+            print(f"      • Return keys: {list(optimized_explain_cost_result.keys())}")
         
         if not original_cost_success:
-            print("⚠️ 元クエリのEXPLAIN COST実行失敗: パフォーマンス比較をスキップ")
+            print("⚠️ Original query EXPLAIN COST execution failed: Skipping performance comparison")
             if 'error_file' in original_explain_cost_result:
-                print(f"📄 エラー詳細: {original_explain_cost_result['error_file']}")
+                print(f"📄 Error details: {original_explain_cost_result['error_file']}")
         
         if not optimized_cost_success:
-            print("⚠️ 最適化クエリのEXPLAIN COST実行失敗: エラー修正を試行")
+            print("⚠️ Optimized query EXPLAIN COST execution failed: Attempting error correction")
             if 'error_file' in optimized_explain_cost_result:
-                print(f"📄 エラー詳細: {optimized_explain_cost_result['error_file']}")
+                print(f"📄 Error details: {optimized_explain_cost_result['error_file']}")
                 
                 # 🚨 CRITICAL FIX: エラー検出時は即座にLLM修正を実行
-                print("🔧 LLMによるエラー修正を実行中...")
+                print("🔧 Executing LLM-based error correction...")
                 error_message = optimized_explain_cost_result.get('error_message', 'Unknown error')
                 
                 # エラー修正のためのLLM呼び出し
@@ -11426,7 +11426,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     extracted_sql = extract_sql_from_llm_response(corrected_query_str)
                     if extracted_sql:
                         current_query = extracted_sql
-                        print("✅ LLMによるエラー修正完了、修正クエリで再評価")
+                        print("✅ LLM-based error correction completed, re-evaluating with corrected query")
                         
                         # 修正クエリで再度EXPLAIN実行
                         optimized_explain_cost_result = execute_explain_and_save_to_file(current_query, f"optimized_attempt_{attempt_num}_corrected")
@@ -11434,19 +11434,19 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                                                 'error_file' not in optimized_explain_cost_result)
                         
                         if optimized_cost_success:
-                            print("🎯 修正クエリのEXPLAIN実行成功!")
+                            print("🎯 Corrected query EXPLAIN execution successful!")
                         else:
-                            print("⚠️ 修正クエリでもエラー発生: フォールバック評価を実行")
+                            print("⚠️ Error occurred even with corrected query: Executing fallback evaluation")
                     else:
                         print("❌ Failed to extract SQL query: Executing fallback evaluation")
             
             # エラー修正後もエラーの場合、フォールバック評価を実行
             if not optimized_cost_success:
-                print("🔄 フォールバック評価を実行")
+                print("🔄 Executing fallback evaluation")
         
         # 🚨 緊急修正: EXPLAIN COST失敗時のフォールバック パフォーマンス評価
         if not (original_cost_success and optimized_cost_success):
-            print("🔄 フォールバック: EXPLAIN結果による簡易パフォーマンス評価を実行")
+            print("🔄 Fallback: Executing simple performance evaluation using EXPLAIN results")
             
             # EXPLAIN結果が利用可能な場合のフォールバック評価
             original_explain_success = ('explain_file' in original_explain_cost_result and 
@@ -11466,9 +11466,9 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     # フォールバック評価実行
                     fallback_evaluation = fallback_performance_evaluation(original_explain_content, optimized_explain_content)
                     
-                    print(f"📊 フォールバック評価結果: {fallback_evaluation['summary']}")
-                    print(f"   - 推奨: {fallback_evaluation['recommendation']}")
-                    print(f"   - 信頼度: {fallback_evaluation['confidence']}")
+                    print(f"📊 Fallback evaluation result: {fallback_evaluation['summary']}")
+                    print(f"   - Recommendation: {fallback_evaluation['recommendation']}")
+                    print(f"   - Confidence: {fallback_evaluation['confidence']}")
                     
                     for detail in fallback_evaluation['details']:
                         print(f"   - {detail}")
@@ -11486,15 +11486,15 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                         'memory_usage_ratio': 1.0  # EXPLAIN COSTなしのため未知
                     }
                     
-                    print("✅ フォールバック パフォーマンス評価完了")
+                    print("✅ Fallback performance evaluation completed")
                     
                     # 🚨 フォールバック評価でも厳格判定適用
                     if not performance_comparison.get('significant_improvement_detected', False):
                         if performance_comparison['performance_degradation_detected']:
-                            print(f"🚨 試行{attempt_num}: フォールバック評価で悪化の可能性")
+                            print(f"🚨 Attempt {attempt_num}: Possibility of degradation in fallback evaluation")
                             status_reason = "fallback_degradation_detected"
                         else:
-                            print(f"⚠️ 試行{attempt_num}: フォールバック評価で明確な改善が確認できません")
+                            print(f"⚠️ Attempt {attempt_num}: Clear improvement not confirmed in fallback evaluation")
                             status_reason = "fallback_insufficient_improvement"
                         
                         optimization_attempts.append({
@@ -11518,7 +11518,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                             )
                             
                             if is_better_than_best:
-                                print(f"🏆 試行{attempt_num}: フォールバック評価で新ベスト結果！")
+                                print(f"🏆 Attempt {attempt_num}: New best result in fallback evaluation!")
                                 best_result.update({
                                     'attempt_num': attempt_num,
                                     'query': current_query,
@@ -11540,10 +11540,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                         
                         # 🚀 フォールバック評価では大幅改善判定が困難なため、試行継続
                         if attempt_num < max_optimization_attempts:
-                            print(f"🔄 試行{attempt_num + 1}でより確実な改善を目指します（フォールバック評価）")
+                            print(f"🔄 Aiming for more reliable improvement in attempt {attempt_num + 1} (fallback evaluation)")
                             continue
                         else:
-                            print(f"⏰ 最大試行回数({max_optimization_attempts})到達 → ベスト結果を選択")
+                            print(f"⏰ Maximum attempts ({max_optimization_attempts}) reached → Selecting best result")
                             break
                     
                 except Exception as e:
@@ -11561,7 +11561,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         if (original_cost_success and optimized_cost_success):
             
             try:
-                print(f"🎯 両方のEXPLAIN COST成功 → パフォーマンス比較を実行")
+                print(f"🎯 Both EXPLAIN COST successful → Executing performance comparison")
                 
                 # EXPLAIN COST内容を読み込み
                 with open(original_explain_cost_result['explain_cost_file'], 'r', encoding='utf-8') as f:
@@ -11570,13 +11570,13 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 with open(optimized_explain_cost_result['explain_cost_file'], 'r', encoding='utf-8') as f:
                     optimized_cost_content = f.read()
                 
-                print(f"   📊 元クエリCOST内容長: {len(original_cost_content)} 文字")
-                print(f"   🔧 最適化クエリCOST内容長: {len(optimized_cost_content)} 文字")
+                print(f"   📊 Original query COST content length: {len(original_cost_content)} characters")
+                print(f"   🔧 Optimized query COST content length: {len(optimized_cost_content)} characters")
                 
                 # パフォーマンス比較実行
-                print(f"🔍 compare_query_performance 実行中...")
+                print(f"🔍 Executing compare_query_performance...")
                 performance_comparison = compare_query_performance(original_cost_content, optimized_cost_content)
-                print(f"✅ compare_query_performance 完了: {performance_comparison is not None}")
+                print(f"✅ compare_query_performance completed: {performance_comparison is not None}")
                 
                 if performance_comparison:
                     print(f"   📊 significant_improvement_detected: {performance_comparison.get('significant_improvement_detected', 'UNKNOWN')}")
@@ -11596,9 +11596,9 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 )
                 
                 if is_better_than_best:
-                    print(f"🏆 試行{attempt_num}: 新しいベスト結果を記録！")
-                    print(f"   📊 コスト比: {best_result['cost_ratio']:.3f} → {current_cost_ratio:.3f}")
-                    print(f"   💾 メモリ比: {best_result['memory_ratio']:.3f} → {current_memory_ratio:.3f}")
+                    print(f"🏆 Attempt {attempt_num}: New best result recorded!")
+                    print(f"   📊 Cost ratio: {best_result['cost_ratio']:.3f} → {current_cost_ratio:.3f}")
+                    print(f"   💾 Memory ratio: {best_result['memory_ratio']:.3f} → {current_memory_ratio:.3f}")
                     best_result.update({
                         'attempt_num': attempt_num,
                         'query': current_query,
@@ -11611,7 +11611,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 
                 # 🚀 大幅改善（10%以上）達成で即座に終了
                 if performance_comparison.get('substantial_improvement_detected', False):
-                    print(f"🚀 試行{attempt_num}: 大幅改善達成（10%以上削減）！即座に最適化完了")
+                    print(f"🚀 Attempt {attempt_num}: Significant improvement achieved (10%+ reduction)! Optimization completed immediately")
                     optimization_attempts.append({
                         'attempt': attempt_num,
                         'status': 'substantial_success',
@@ -11635,21 +11635,21 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 
                 # 🚀 改善はあるが大幅でない場合の判定
                 elif performance_comparison.get('significant_improvement_detected', False):
-                    print(f"✅ 試行{attempt_num}: 改善を確認（目標10%未達）")
+                    print(f"✅ Attempt {attempt_num}: Improvement confirmed (target 10% not reached)")
                     status_reason = "partial_improvement"
                 else:
                     # 改善なしまたは悪化の場合
                     if performance_comparison['performance_degradation_detected']:
-                        print(f"🚨 試行{attempt_num}: パフォーマンス増加を検出")
+                        print(f"🚨 Attempt {attempt_num}: Performance increase detected")
                         status_reason = "performance_degraded"
                     else:
-                        print(f"⚠️ 試行{attempt_num}: 明確な改善が確認できません")
+                        print(f"⚠️ Attempt {attempt_num}: Clear improvement cannot be confirmed")
                         status_reason = "insufficient_improvement"
                 
                 # 悪化原因分析（改善不足の場合も実行）
                 degradation_analysis = analyze_degradation_causes(performance_comparison, original_cost_content, optimized_cost_content)
                 
-                print(f"   詳細: {', '.join(performance_comparison.get('details', []))}")
+                print(f"   Details: {', '.join(performance_comparison.get('details', []))}")
                 
                 optimization_attempts.append({
                     'attempt': attempt_num,
@@ -11663,14 +11663,14 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 
                 # 🚀 新判定: 大幅改善（10%以上）でない限り試行継続
                 if attempt_num < max_optimization_attempts:
-                    print(f"🔄 試行{attempt_num + 1}で大幅改善（10%以上削減）を目指します")
+                    print(f"🔄 Aiming for significant improvement (10%+ reduction) in attempt {attempt_num + 1}")
                     continue
                 else:
-                    print(f"⏰ 最大試行回数({max_optimization_attempts})到達 → ベスト結果を選択")
+                    print(f"⏰ Maximum attempts ({max_optimization_attempts}) reached → Selecting best result")
                     break
             
             except Exception as e:
-                print(f"❌ 試行{attempt_num}: パフォーマンス比較でエラー: {str(e)}")
+                print(f"❌ Attempt {attempt_num}: Error in performance comparison: {str(e)}")
                 print(f"   📊 エラータイプ: {type(e).__name__}")
                 if hasattr(e, '__traceback__'):
                     import traceback
@@ -12930,7 +12930,7 @@ def refine_report_content_with_llm(report_content: str) -> str:
         truncated_content += f"\n\n⚠️ レポートが大きすぎるため、{MAX_CONTENT_SIZE:,} 文字に切り詰められました（元サイズ: {original_size:,} 文字）"
         report_content = truncated_content
     else:
-        print(f"📊 レポートサイズ: {original_size:,} 文字（推敲実行）")
+        print(f"📊 Report size: {original_size:,} characters (executing refinement)")
     
     # Photon利用率の抽出と評価判定
     import re
