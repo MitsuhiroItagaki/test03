@@ -11686,7 +11686,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         
         # 🚨 緊急修正: パフォーマンス評価が完全に失敗した場合のハンドリング（ロジック順序修正後）
         elif performance_comparison is None:
-            print(f"🚨 試行{attempt_num}: パフォーマンス評価が不可能なため、次の試行に進みます")
+            print(f"🚨 Attempt {attempt_num}: Performance evaluation impossible, proceeding to next attempt")
             
             optimization_attempts.append({
                 'attempt': attempt_num,
@@ -11700,7 +11700,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             
             # 最後の試行でない場合は次の改善を試行
             if attempt_num < max_optimization_attempts:
-                print(f"🔄 試行{attempt_num + 1}でパフォーマンス評価の再試行を行います")
+                print(f"🔄 Will retry performance evaluation in attempt {attempt_num + 1}")
                 continue
             else:
                 print(f"❌ Maximum attempts ({max_optimization_attempts}) reached, using original query")
@@ -12349,7 +12349,7 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                 if error_source == "EXPLAIN" and len(explain_result) > preview_lines:
                     print(f"... (Remaining {len(explain_result) - preview_lines} lines)")
                 elif error_source == "EXPLAIN COST" and len(explain_cost_result) > preview_lines:
-                    print(f"... (残り {len(explain_cost_result) - preview_lines} 行)")
+                    print(f"... (Remaining {len(explain_cost_result) - preview_lines} lines)")
             
             print("-" * 50)
             
@@ -12364,18 +12364,18 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
             return result_dict
         
         # エラーが検出されなかった場合は成功として処理
-        print(f"✅ EXPLAIN & EXPLAIN COST実行成功")
-        print(f"📊 EXPLAIN実行プラン行数: {len(explain_result):,}")
-        print(f"💰 EXPLAIN COST統計行数: {len(explain_cost_result):,}")
+        print(f"✅ EXPLAIN & EXPLAIN COST execution successful")
+        print(f"📊 EXPLAIN execution plan lines: {len(explain_result):,}")
+        print(f"💰 EXPLAIN COST statistics lines: {len(explain_cost_result):,}")
         
         # 結果のプレビュー表示
-        print("\n📋 EXPLAIN結果のプレビュー:")
+        print("\n📋 EXPLAIN results preview:")
         print("-" * 50)
         preview_lines = min(10, len(explain_result))
         for i, row in enumerate(explain_result[:preview_lines]):
             print(f"{i+1:2d}: {str(row[0])[:100]}...")
         
-        print("\n💰 EXPLAIN COST結果のプレビュー:")
+        print("\n💰 EXPLAIN COST results preview:")
         print("-" * 50)
         cost_preview_lines = min(10, len(explain_cost_result))
         for i, row in enumerate(explain_cost_result[:cost_preview_lines]):
@@ -12405,18 +12405,18 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                 f.write("=" * 80 + "\n\n")
                 f.write(explain_cost_content)
             
-            print(f"📄 EXPLAIN結果を保存: {explain_filename}")
-            print(f"💰 EXPLAIN COST結果を保存: {explain_cost_filename}")
+            print(f"📄 Saved EXPLAIN results: {explain_filename}")
+            print(f"💰 Saved EXPLAIN COST results: {explain_cost_filename}")
             if len(explain_result) > preview_lines:
-                print(f"... (残り {len(explain_result) - preview_lines} 行は {explain_filename} を参照)")
+                print(f"... (Remaining {len(explain_result) - preview_lines} lines, see {explain_filename})")
             if len(explain_cost_result) > cost_preview_lines:
-                print(f"... (残り {len(explain_cost_result) - cost_preview_lines} 行は {explain_cost_filename} を参照)")
+                print(f"... (Remaining {len(explain_cost_result) - cost_preview_lines} lines, see {explain_cost_filename})")
         else:
-            print("💡 EXPLAIN_ENABLED=N のため、EXPLAIN結果ファイルは保存されません")
+            print("💡 EXPLAIN result files not saved because EXPLAIN_ENABLED=N")
             if len(explain_result) > preview_lines:
                 print(f"... (Remaining {len(explain_result) - preview_lines} lines)")
             if len(explain_cost_result) > cost_preview_lines:
-                print(f"... (残り {len(explain_cost_result) - cost_preview_lines} 行)")
+                print(f"... (Remaining {len(explain_cost_result) - cost_preview_lines} lines)")
         
         print("-" * 50)
         
@@ -12488,9 +12488,9 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         is_retryable = any(pattern in error_message.lower() for pattern in retryable_error_patterns)
         
         if is_truly_fatal:
-            print(f"🚨 FATAL: 回復不可能なエラーが発生しました")
-            print(f"🚨 エラー詳細: {error_message}")
-            print(f"🚨 処理を終了します。")
+            print(f"🚨 FATAL: Unrecoverable error occurred")
+            print(f"🚨 Error details: {error_message}")
+            print(f"🚨 Terminating processing.")
             
             # エラーファイルの保存（EXPLAIN_ENABLED=Yの場合のみ）
             if explain_enabled.upper() == 'Y':
@@ -12511,20 +12511,20 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                         f.write("=" * 80 + "\n\n")
                         f.write(explain_cost_query)
                     
-                    print(f"📄 Fatal エラー詳細を保存: {error_filename}")
+                    print(f"📄 Saved Fatal error details: {error_filename}")
                     
                 except Exception as file_error:
-                    print(f"❌ Fatal エラーファイルの保存にも失敗: {str(file_error)}")
+                    print(f"❌ Failed to save Fatal error file: {str(file_error)}")
             else:
-                print("💡 EXPLAIN_ENABLED=N のため、Fatal エラーファイルは保存されません")
+                print("💡 Fatal error file not saved because EXPLAIN_ENABLED=N")
             
             # プログラムを終了
             import sys
             sys.exit(1)
         
         elif is_retryable:
-            print(f"🔄 再試行可能なエラーを検出: {error_message}")
-            print(f"💡 このエラーはLLMによる自動修正の対象です")
+            print(f"🔄 Detected retryable error: {error_message}")
+            print(f"💡 This error is a candidate for LLM automatic correction")
         
         # 非致命的なエラーの場合の処理
         error_filename = None
@@ -12548,7 +12548,7 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                 print(f"📄 Saved error details: {error_filename}")
                 
             except Exception as file_error:
-                print(f"❌ エラーファイルの保存にも失敗: {str(file_error)}")
+                print(f"❌ Failed to save error file: {str(file_error)}")
         else:
             print("💡 Error file not saved because EXPLAIN_ENABLED=N")
         
@@ -12561,51 +12561,51 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         return result_dict
 
 # EXPLAIN文実行の実行
-print("\n🔍 EXPLAIN文実行処理")
+print("\n🔍 EXPLAIN statement execution processing")
 print("-" * 40)
 
 # セル43で抽出したオリジナルクエリが変数に残っているかチェック
 try:
     # original_queryが既に定義されているか確認
     original_query_for_explain = original_query
-    print(f"✅ オリジナルクエリを取得しました ({len(original_query_for_explain)} 文字)")
+    print(f"✅ Retrieved original query ({len(original_query_for_explain)} characters)")
     
 except NameError:
-    print("⚠️ オリジナルクエリが見つかりません")
-    print("   セル43 (オリジナルクエリ抽出) を先に実行してください")
+    print("⚠️ Original query not found")
+    print("   Please execute Cell 43 (original query extraction) first")
     
     # フォールバック: プロファイラーデータから再抽出
     try:
-        print("🔄 プロファイラーデータから再抽出を試行中...")
+        print("🔄 Attempting re-extraction from profiler data...")
         original_query_for_explain = extract_original_query_from_profiler_data(profiler_data)
         
         if original_query_for_explain:
-            print(f"✅ 再抽出成功 ({len(original_query_for_explain)} 文字)")
+            print(f"✅ Re-extraction successful ({len(original_query_for_explain)} characters)")
         else:
-            print("❌ 再抽出に失敗しました")
+            print("❌ Re-extraction failed")
             original_query_for_explain = None
             
     except Exception as e:
-        print(f"❌ 再抽出中にエラー: {str(e)}")
+        print(f"❌ Error during re-extraction: {str(e)}")
         original_query_for_explain = None
 
 # EXPLAIN実行フラグの確認
 explain_enabled = globals().get('EXPLAIN_ENABLED', 'N')
-print(f"🔍 EXPLAIN実行設定: {explain_enabled}")
+print(f"🔍 EXPLAIN execution setting: {explain_enabled}")
 
 if explain_enabled.upper() != 'Y':
-    print("⚠️ EXPLAIN実行が無効化されています")
-    print("   EXPLAIN文を実行する場合は、最初のセルでEXPLAIN_ENABLED = 'Y'に設定してください")
+    print("⚠️ EXPLAIN execution is disabled")
+    print("   To execute EXPLAIN statements, set EXPLAIN_ENABLED = 'Y' in the first cell")
 elif original_query_for_explain and original_query_for_explain.strip():
-    print("\n🚀 統合SQL最適化 & EXPLAIN実行（自動エラー修正付き）")
+    print("\n🚀 Integrated SQL Optimization & EXPLAIN Execution (with automatic error correction)")
     
     # Spark環境の確認
     try:
         spark_version = spark.version
-        print(f"📊 Spark環境: {spark_version}")
+        print(f"📊 Spark environment: {spark_version}")
     except Exception as e:
         print(f"❌ Failed to check Spark environment: {str(e)}")
-        print("   Databricks環境で実行してください")
+        print("   Please execute in Databricks environment")
         spark = None
     
     if spark:
@@ -12615,14 +12615,14 @@ elif original_query_for_explain and original_query_for_explain.strip():
             if 'analysis_result' in globals():
                 current_analysis_result = analysis_result
             else:
-                print("⚠️ 分析結果が見つかりません。簡易分析を実行します...")
+                print("⚠️ Analysis results not found. Executing simple analysis...")
                 current_analysis_result = "分析結果が利用できないため、基本的な最適化のみ実行"
             
             # extracted_metricsが定義されているかチェック  
             if 'extracted_metrics' in globals():
                 current_metrics = extracted_metrics
             else:
-                print("⚠️ メトリクスが見つかりません。空のメトリクスで実行します...")
+                print("⚠️ Metrics not found. Executing with empty metrics...")
                 current_metrics = {}
             
             # thinking_enabled対応
@@ -12641,14 +12641,14 @@ elif original_query_for_explain and original_query_for_explain.strip():
             
             # 🎯 元クエリをグローバル変数として保存（重複処理防止）
             globals()['original_query_corrected'] = original_query_validated
-            print("💾 元クエリをキャッシュ: 重複処理防止")
+            print("💾 Caching original query: Preventing duplicate processing")
             
             original_explain_result = execute_explain_and_save_to_file(original_query_for_explain, "original")
             
             # 🚨 元クエリでエラーが発生した場合のLLM修正
             if 'error_file' in original_explain_result:
-                print(f"🚨 元のクエリで構文エラーを検出: {original_explain_result.get('error_file', 'unknown')}")
-                print("🤖 LLMによる元クエリ修正を実行中...")
+                print(f"🚨 Detected syntax error in original query: {original_explain_result.get('error_file', 'unknown')}")
+                print("🤖 Executing LLM-based original query correction...")
                 
                 # エラー内容を読み込み
                 error_message = ""
@@ -12676,7 +12676,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 
                 # 修正結果をチェック
                 if isinstance(corrected_original_query, str) and not corrected_original_query.startswith("LLM_ERROR:"):
-                    print("✅ LLMによる元クエリ修正完了")
+                    print("✅ LLM-based original query correction completed")
                     
                     # 修正されたクエリからSQLを抽出
                     if isinstance(corrected_original_query, list):
@@ -12687,18 +12687,18 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     extracted_sql = extract_sql_from_llm_response(corrected_query_str)
                     if extracted_sql:
                         original_query_for_explain = extracted_sql
-                        print("🔄 修正されたクエリで再度EXPLAIN実行")
+                        print("🔄 Re-executing EXPLAIN with corrected query")
                         
                         # 修正されたクエリで再度EXPLAIN実行
                         original_explain_result = execute_explain_and_save_to_file(original_query_for_explain, "original_corrected")
                         
                         # グローバルキャッシュも更新
                         globals()['original_query_corrected'] = original_query_for_explain
-                        print("💾 修正された元クエリをキャッシュ更新")
+                        print("💾 Updating cache with corrected original query")
                     else:
-                        print("❌ 修正されたクエリからSQL抽出失敗")
+                        print("❌ Failed to extract SQL from corrected query")
                 else:
-                    print("❌ LLMによる元クエリ修正失敗")
+                    print("❌ LLM-based original query correction failed")
             
             if 'explain_file' in original_explain_result:
                 print(f"✅ Saved original query EXPLAIN result: {original_explain_result['explain_file']}")
@@ -12868,7 +12868,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
         
     else:
         print("❌ Spark環境が利用できないため、EXPLAIN文は実行できません")
-        print("   Databricks環境で実行してください")
+        print("   Please execute in Databricks environment")
         
 else:
     print("❌ 実行可能なオリジナルクエリが見つかりません")
