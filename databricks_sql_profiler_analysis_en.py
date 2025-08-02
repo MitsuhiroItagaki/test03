@@ -8413,9 +8413,9 @@ def format_sql_content_for_report(content: str, filename: str = "") -> str:
         str: レポート用にフォーマットされた内容
     """
     # 省略判定の基準
-    MAX_LINES_IN_REPORT = 30
-    MAX_CHARS_IN_REPORT = 3000
-    PREVIEW_LINES = 15
+    MAX_LINES_IN_REPORT = 120  # 100行のプレビューに対応
+    MAX_CHARS_IN_REPORT = 10000  # より長いクエリにも対応
+    PREVIEW_LINES = 100  # 100行のプレビュー
     
     # SQLファイル内容の場合（-- で始まるコメントがある場合）
     if content.startswith('--') and 'USE CATALOG' in content:
