@@ -12924,7 +12924,7 @@ def refine_report_content_with_llm(report_content: str) -> str:
     original_size = len(report_content)
     
     if original_size > MAX_CONTENT_SIZE:
-        print(f"⚠️ レポートサイズが大きすぎます: {original_size:,} 文字 → {MAX_CONTENT_SIZE:,} 文字に切り詰め")
+        print(f"⚠️ Report size too large: {original_size:,} characters → truncated to {MAX_CONTENT_SIZE:,} characters")
         # 重要セクションを優先的に保持
         truncated_content = report_content[:MAX_CONTENT_SIZE]
         truncated_content += f"\n\n⚠️ レポートが大きすぎるため、{MAX_CONTENT_SIZE:,} 文字に切り詰められました（元サイズ: {original_size:,} 文字）"
@@ -13087,11 +13087,11 @@ def refine_report_content_with_llm(report_content: str) -> str:
         if isinstance(refined_content, list):
             refined_content = format_thinking_response(refined_content)
         
-        print(f"✅ LLMによるレポート推敲完了 (セル46独立処理)")
+        print(f"✅ LLM-based report refinement completed (Cell 46 independent processing)")
         return refined_content
         
     except Exception as e:
-        print(f"❌ LLMによるレポート推敲中にエラーが発生: {str(e)}")
+        print(f"❌ Error occurred during LLM-based report refinement: {str(e)}")
         return report_content
 # 
 def save_refined_report(refined_content: str, original_filename: str) -> str:
@@ -13107,11 +13107,11 @@ def save_refined_report(refined_content: str, original_filename: str) -> str:
         with open(refined_filename, 'w', encoding='utf-8') as f:
             f.write(refined_content)
         
-        print(f"✅ 最終レポートを保存: {refined_filename}")
+        print(f"✅ Saved final report: {refined_filename}")
         return refined_filename
         
     except Exception as e:
-        print(f"❌ 推敲レポートの保存中にエラー: {str(e)}")
+        print(f"❌ Error during refined report saving: {str(e)}")
         return None
 # 
 def finalize_report_files(original_filename: str, refined_filename: str) -> str:
@@ -13129,25 +13129,25 @@ def finalize_report_files(original_filename: str, refined_filename: str) -> str:
                 backup_filename = original_filename.replace('.md', '_raw.md')
                 
                 os.rename(original_filename, backup_filename)
-                print(f"📁 元のファイルを保持: {original_filename} → {backup_filename}")
+                print(f"📁 Preserving original file: {original_filename} → {backup_filename}")
             else:
-                print(f"⚠️ 元のファイルが見つかりません: {original_filename}")
+                print(f"⚠️ Original file not found: {original_filename}")
         else:
             # DEBUG_ENABLED=N: 元のファイルを削除
             if os.path.exists(original_filename):
                 os.remove(original_filename)
-                print(f"🗑️ 元のファイルを削除: {original_filename}")
+                print(f"🗑️ Deleted original file: {original_filename}")
         
         # 最終レポートファイル（output_final_report_*）はリネームせずそのまま保持
         if os.path.exists(refined_filename):
-            print(f"✅ 最終レポートファイルを保持: {refined_filename}")
+            print(f"✅ Preserving final report file: {refined_filename}")
             return refined_filename
         else:
-            print(f"❌ 推敲版ファイルが見つかりません: {refined_filename}")
+            print(f"❌ Refined version file not found: {refined_filename}")
             return None
             
     except Exception as e:
-        print(f"❌ ファイル操作中にエラー: {str(e)}")
+        print(f"❌ Error during file operations: {str(e)}")
         return None
 # 
 # 
@@ -13157,14 +13157,14 @@ try:
     latest_report = find_latest_report_file()
     
     if not latest_report:
-        print("❌ レポートファイルが見つかりません")
-        print("⚠️ セル43 (統合SQL最適化処理) を先に実行してください")
+        print("❌ Report file not found")
+        print("⚠️ Please execute Cell 43 (Integrated SQL Optimization Processing) first")
         print()
-        print("🔍 詳細なトラブルシューティング:")
-        print("1. セル43が正常に完了しているかご確認ください")
-        print("2. エラーメッセージが表示されていないかご確認ください")
-        print("3. current_analysis_result、extracted_metrics等の変数が定義されているかご確認ください")
-        print("4. 緊急フォールバック処理が実行されている場合があります")
+        print("🔍 Detailed troubleshooting:")
+        print("1. Please confirm that Cell 43 completed normally")
+        print("2. Please check if any error messages are displayed")
+        print("3. Please check if variables like current_analysis_result and extracted_metrics are defined")
+        print("4. Emergency fallback processing may have been executed")
         
         # 関連ファイルの存在チェック
         import glob
@@ -13176,10 +13176,10 @@ try:
         language_suffix = 'en' if OUTPUT_LANGUAGE == 'en' else 'jp'
         current_lang_reports = glob.glob(f"output_optimization_report_{language_suffix}_*.md")
         
-        print(f"\n📁 現在のファイル状況:")
-        print(f"   📄 最適化クエリファイル: {len(sql_files)} 個")
-        print(f"   📄 オリジナルクエリファイル: {len(original_files)} 個")
-        print(f"   📄 レポートファイル（{language_suffix.upper()}）: {len(current_lang_reports)} 個")
+        print(f"\n📁 Current file status:")
+        print(f"   📄 Optimized query files: {len(sql_files)} files")
+        print(f"   📄 Original query files: {len(original_files)} files")
+        print(f"   📄 Report files ({language_suffix.upper()}): {len(current_lang_reports)} files")
         print(f"   📄 レポートファイル（全体）: {len(all_reports)} 個")
         
         if all_reports:
@@ -13283,10 +13283,10 @@ debug_enabled = globals().get('DEBUG_ENABLED', 'N')
 explain_enabled = globals().get('EXPLAIN_ENABLED', 'N')
 
 if debug_enabled.upper() == 'Y':
-    print("\n🐛 デバッグモード有効: 中間ファイルを保持します")
+    print("\n🐛 Debug mode enabled: Preserving intermediate files")
     print("-" * 40)
-    print("💡 DEBUG_ENABLED=Y のため、すべての中間ファイルが保持されます")
-    print("📁 以下のファイルが保持されます:")
+    print("💡 All intermediate files are preserved because DEBUG_ENABLED=Y")
+    print("📁 The following files are preserved:")
     
     import glob
     import os
