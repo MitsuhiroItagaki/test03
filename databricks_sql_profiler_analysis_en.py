@@ -8652,14 +8652,14 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
                     explain_cost_content = f.read()
                     print(f"💰 Loaded EXPLAIN COST results for comprehensive report: {latest_cost_file}")
             except Exception as e:
-                print(f"⚠️ EXPLAIN COST結果の読み込みに失敗: {str(e)}")
+                print(f"⚠️ Failed to load EXPLAIN COST results: {str(e)}")
         
         # 📊 要約機能を使ってトークン制限に対応
         summary_results = summarize_explain_results_with_llm(explain_content, explain_cost_content, query_type)
         
         # 要約結果を使ってレポートセクションを構築
         if summary_results['summarized']:
-            print(f"📊 要約版レポートセクション生成（合計サイズ削減）")
+            print(f"📊 Generating summary report sections (total size reduction)")
         
         if OUTPUT_LANGUAGE == 'ja':
             explain_section = f"""
@@ -9495,7 +9495,7 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
             # JOIN句内のBROADCASTヒントがない場合はそのまま返す
             return sql_query
         
-        print(f"🔧 JOIN句内のBROADCASTヒントを検出: {len(join_broadcast_matches)}個")
+        print(f"🔧 Detected BROADCAST hints in JOIN clauses: {len(join_broadcast_matches)} instances")
         
         # 抽出されたBROADCAST対象テーブル名/エイリアス名を収集
         broadcast_tables = []
@@ -9577,7 +9577,7 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
             return sql_query
             
     except Exception as e:
-        print(f"⚠️ JOIN BROADCAST配置修正でエラー: {str(e)}")
+        print(f"⚠️ Error in JOIN BROADCAST placement correction: {str(e)}")
         print("🔄 Returning original query")
         return sql_query
 
@@ -11548,10 +11548,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     
                 except Exception as e:
                     print(f"❌ Error in fallback evaluation as well: {str(e)}")
-                    print(f"   📊 エラー詳細: {type(e).__name__}")
+                    print(f"   📊 Error details: {type(e).__name__}")
                     if hasattr(e, '__traceback__'):
                         import traceback
-                        print(f"   📄 スタックトレース: {traceback.format_exc()}")
+                        print(f"   📄 Stack trace: {traceback.format_exc()}")
                     performance_comparison = None
             else:
                 print("❌ EXPLAIN results also insufficient, performance evaluation impossible")
@@ -11671,11 +11671,11 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             
             except Exception as e:
                 print(f"❌ Attempt {attempt_num}: Error in performance comparison: {str(e)}")
-                print(f"   📊 エラータイプ: {type(e).__name__}")
+                print(f"   📊 Error type: {type(e).__name__}")
                 if hasattr(e, '__traceback__'):
                     import traceback
-                    print(f"   📄 スタックトレース: {traceback.format_exc()}")
-                print(f"🚨 このエラーが「パフォーマンス評価が不可能」の原因です！")
+                    print(f"   📄 Stack trace: {traceback.format_exc()}")
+                print(f"🚨 This error is the cause of 'Performance evaluation impossible'!")
                 optimization_attempts.append({
                     'attempt': attempt_num,
                     'status': 'comparison_error',
@@ -11707,7 +11707,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 break
         
         else:
-            print(f"⚠️ 試行{attempt_num}: EXPLAIN COST取得失敗、構文的に正常な最適化クエリを使用")
+            print(f"⚠️ Attempt {attempt_num}: EXPLAIN COST acquisition failed, using syntactically normal optimized query")
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'explain_cost_failed',
@@ -11730,15 +11730,15 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             }
     
     # 🚀 最大試行回数到達：ベスト結果を最終クエリとして選択
-    print(f"\n⏰ 全{max_optimization_attempts}回の最適化試行が完了")
-    print("🏆 ベスト結果を最終クエリとして選択します")
+    print(f"\n⏰ All {max_optimization_attempts} optimization attempts completed")
+    print("🏆 Selecting best result as final query")
     print("=" * 60)
     
     # ベスト結果の詳細表示
     if best_result['attempt_num'] > 0:
-        print(f"🥇 選択されたベスト結果: 試行{best_result['attempt_num']}")
-        print(f"   📊 コスト比: {best_result['cost_ratio']:.3f} (改善度: {(1-best_result['cost_ratio'])*100:.1f}%)")
-        print(f"   💾 メモリ比: {best_result['memory_ratio']:.3f} (改善度: {(1-best_result['memory_ratio'])*100:.1f}%)")
+        print(f"🥇 Selected best result: Attempt {best_result['attempt_num']}")
+        print(f"   📊 Cost ratio: {best_result['cost_ratio']:.3f} (Improvement: {(1-best_result['cost_ratio'])*100:.1f}%)")
+        print(f"   💾 Memory ratio: {best_result['memory_ratio']:.3f} (Improvement: {(1-best_result['memory_ratio'])*100:.1f}%)")
         
         final_query = best_result['query']
         final_optimized_result = best_result['optimized_result']
@@ -11746,10 +11746,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         final_status = 'optimization_success'
         achievement_type = 'best_of_trials'
         
-        print(f"✅ ベスト結果を最適化クエリとして採用")
+        print(f"✅ Adopting best result as optimized query")
         
     else:
-        print(f"⚠️ 全ての試行でエラーまたは評価不可のため、元クエリを使用")
+        print(f"⚠️ Using original query due to errors or evaluation failures in all attempts")
         
         # 試行結果サマリー
         failure_summary = []
@@ -11830,7 +11830,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
     # LLMエラーチェック（重要）
     if isinstance(optimized_query, str) and optimized_query.startswith("LLM_ERROR:"):
         print("❌ Error occurred in LLM optimization, using original query")
-        print(f"🔧 エラー詳細: {optimized_query[10:]}")  # "LLM_ERROR:"を除去
+        print(f"🔧 Error details: {optimized_query[10:]}")  # "LLM_ERROR:"を除去
         
         # エラー時は元のクエリを使用して即座にファイル生成
         fallback_result = save_optimized_sql_files(
@@ -11867,14 +11867,14 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
     
     while retry_count <= max_retries:
         attempt_num = retry_count + 1
-        print(f"\n🔍 試行 {attempt_num}/{max_retries + 1}: EXPLAIN実行")
+        print(f"\n🔍 Attempt {attempt_num}/{max_retries + 1}: EXPLAIN execution")
         
         # EXPLAIN実行（最適化後クエリ）
         explain_result = execute_explain_and_save_to_file(current_query, "optimized")
         
         # 成功時の処理
         if 'explain_file' in explain_result and 'error_file' not in explain_result:
-            print(f"✅ 試行 {attempt_num} で成功しました！")
+            print(f"✅ Succeeded in attempt {attempt_num}!")
             
             # 🚨 修正：パフォーマンス比較は反復最適化関数で一元化
             # パフォーマンス比較をここで実行すると二重実行になるため削除
@@ -11898,17 +11898,17 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                     # パフォーマンス比較実行
                     performance_comparison = compare_query_performance(original_cost_content, optimized_cost_content)
                     
-                    print(f"📊 パフォーマンス比較結果:")
-                    print(f"   - 実行コスト比: {performance_comparison['total_cost_ratio']:.2f}倍")
-                    print(f"   - メモリ使用比: {performance_comparison['memory_usage_ratio']:.2f}倍")
-                    print(f"   - 推奨: {performance_comparison['recommendation']}")
+                    print(f"📊 Performance comparison results:")
+                    print(f"   - Execution cost ratio: {performance_comparison['total_cost_ratio']:.2f}x")
+                    print(f"   - Memory usage ratio: {performance_comparison['memory_usage_ratio']:.2f}x")
+                    print(f"   - Recommendation: {performance_comparison['recommendation']}")
                     
                     for detail in performance_comparison['details']:
                         print(f"   - {detail}")
                     
                     # パフォーマンス悪化が検出された場合
                     if performance_comparison['performance_degradation_detected']:
-                        print("🚨 パフォーマンス悪化を検出！元クエリを使用します")
+                        print("🚨 Performance degradation detected! Using original query")
                         
                         # 元クエリでのファイル生成（パフォーマンス悪化防止）
                         fallback_result = save_optimized_sql_files(
@@ -11932,11 +11932,11 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                         }
                     
                     else:
-                        print("✅ パフォーマンス改善を確認。最適化クエリを使用します")
+                        print("✅ Performance improvement confirmed. Using optimized query")
                     
                 except Exception as e:
-                    print(f"⚠️ パフォーマンス比較でエラー発生: {str(e)}")
-                    print("🔄 安全のため元クエリを使用します")
+                    print(f"⚠️ Error occurred in performance comparison: {str(e)}")
+                    print("🔄 Using original query for safety")
                     
                     # エラー時も安全側に倒して元クエリを使用
                     fallback_result = save_optimized_sql_files(
@@ -12003,8 +12003,8 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             
             # 最大試行回数に達した場合
             if retry_count >= max_retries:
-                print(f"🚨 最大試行回数（{max_retries}回）に達しました")
-                print("📋 元の動作可能クエリを使用します")
+                print(f"🚨 Maximum number of attempts ({max_retries}) reached")
+                print("📋 Using original working query")
                 
                 # フォールバック: 元クエリでのファイル生成
                 fallback_result = save_optimized_sql_files(
@@ -12044,7 +12044,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                         f.write("=" * 80 + "\n\n")
                         f.write(original_query)
                     
-                    print(f"📄 失敗ログを保存: {log_filename}")
+                    print(f"📄 Saved failure log: {log_filename}")
                     
                 except Exception as log_error:
                                             print(f"❌ Failed to save failure log as well: {str(log_error)}")
@@ -12060,7 +12060,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             
             # 再試行する場合のエラー修正
             retry_count += 1
-            print(f"🔧 試行 {retry_count + 1} に向けてエラー修正中...")
+            print(f"🔧 Correcting error for attempt {retry_count + 1}...")
             
             # エラー情報を含めて再生成（初回最適化クエリも渡す）
             corrected_query = generate_optimized_query_with_error_feedback(
@@ -12080,7 +12080,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             # LLMエラーチェック（エラー修正時）
             if isinstance(corrected_query, str) and corrected_query.startswith("LLM_ERROR:"):
                 print("❌ LLM error occurred even in error correction, using original query")
-                print(f"🔧 エラー詳細: {corrected_query[10:]}")  # "LLM_ERROR:"を除去
+                print(f"🔧 Error details: {corrected_query[10:]}")  # "LLM_ERROR:"を除去
                 
                 # 失敗記録
                 attempt_record = {
@@ -12122,7 +12122,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             extracted_sql = extract_sql_from_llm_response(corrected_query_str)
             current_query = extracted_sql if extracted_sql else current_query
             
-            print(f"✅ エラー修正クエリを生成しました（{len(current_query)} 文字）")
+            print(f"✅ Generated error correction query ({len(current_query)} characters)")
     
     # ここには到達しないはずだが、安全のため
     return {
@@ -12203,22 +12203,22 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
     catalog = globals().get('CATALOG', 'main')
     database = globals().get('DATABASE', 'default')
     
-    print(f"📂 使用カタログ: {catalog}")
-    print(f"🗂️ 使用データベース: {database}")
+    print(f"📂 Using catalog: {catalog}")
+    print(f"🗂️ Using database: {database}")
     
     # カタログとデータベースを設定
     try:
         spark.sql(f"USE CATALOG {catalog}")
         spark.sql(f"USE DATABASE {database}")
     except Exception as e:
-        print(f"⚠️ カタログ/データベース設定エラー: {str(e)}")
+        print(f"⚠️ Catalog/database configuration error: {str(e)}")
     
     # EXPLAIN文とEXPLAIN COST文の実行
     try:
-        print("🔄 EXPLAIN文とEXPLAIN COST文を実行中...")
+        print("🔄 Executing EXPLAIN and EXPLAIN COST statements...")
         
         # 1. 通常のEXPLAIN実行
-        print("   📊 EXPLAIN実行中...")
+        print("   📊 Executing EXPLAIN...")
         explain_result_spark = spark.sql(explain_query)
         explain_result = explain_result_spark.collect()
         
@@ -12228,7 +12228,7 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
             explain_content += str(row[0]) + "\n"
         
         # 2. EXPLAIN COST実行
-        print("   💰 EXPLAIN COST実行中...")
+        print("   💰 Executing EXPLAIN COST...")
         explain_cost_result_spark = spark.sql(explain_cost_query)
         explain_cost_result = explain_cost_result_spark.collect()
         
@@ -12277,9 +12277,9 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         error_source = None
         
         # 🚨 緊急デバッグ: エラー検出プロセスの詳細表示
-        print(f"🔍 エラーパターン検出実行中（パターン数: {len(retryable_error_patterns)}）")
-        print(f"   📊 EXPLAIN内容長: {len(explain_content)} 文字")
-        print(f"   💰 EXPLAIN COST内容長: {len(explain_cost_content)} 文字")
+        print(f"🔍 Executing error pattern detection (patterns: {len(retryable_error_patterns)})")
+        print(f"   📊 EXPLAIN content length: {len(explain_content)} characters")
+        print(f"   💰 EXPLAIN COST content length: {len(explain_cost_content)} characters")
         
         # 1. EXPLAIN結果のエラーチェック
         for pattern in retryable_error_patterns:
@@ -12299,14 +12299,14 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                     break
         
         if not detected_error:
-            print("✅ エラーパターン未検出: 正常な結果として処理")
+            print("✅ No error patterns detected: Processing as normal result")
         
         if detected_error:
             # エラーが検出された場合はエラーとして処理
-            print(f"❌ {error_source}結果でエラーを検出: {detected_error}")
+            print(f"❌ Error detected in {error_source} result: {detected_error}")
             
             # 結果のプレビュー表示（エラー用）
-            print(f"\n📋 {error_source}結果のプレビュー:")
+            print(f"\n📋 {error_source} result preview:")
             print("-" * 50)
             if error_source == "EXPLAIN":
                 preview_lines = min(10, len(explain_result))
@@ -12339,15 +12339,15 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                     f.write("=" * 80 + "\n\n")
                     f.write(explain_cost_content)
                 
-                print(f"📄 エラー詳細を保存: {error_filename}")
+                print(f"📄 Saved error details: {error_filename}")
                 if error_source == "EXPLAIN" and len(explain_result) > preview_lines:
-                    print(f"... (残り {len(explain_result) - preview_lines} 行は {error_filename} を参照)")
+                    print(f"... (Remaining {len(explain_result) - preview_lines} lines, see {error_filename})")
                 elif error_source == "EXPLAIN COST" and len(explain_cost_result) > preview_lines:
-                    print(f"... (残り {len(explain_cost_result) - preview_lines} 行は {error_filename} を参照)")
+                    print(f"... (Remaining {len(explain_cost_result) - preview_lines} lines, see {error_filename})")
             else:
-                print("💡 EXPLAIN_ENABLED=N のため、エラーファイルは保存されません")
+                print("💡 Error file not saved because EXPLAIN_ENABLED=N")
                 if error_source == "EXPLAIN" and len(explain_result) > preview_lines:
-                    print(f"... (残り {len(explain_result) - preview_lines} 行)")
+                    print(f"... (Remaining {len(explain_result) - preview_lines} lines)")
                 elif error_source == "EXPLAIN COST" and len(explain_cost_result) > preview_lines:
                     print(f"... (残り {len(explain_cost_result) - preview_lines} 行)")
             
@@ -12414,7 +12414,7 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         else:
             print("💡 EXPLAIN_ENABLED=N のため、EXPLAIN結果ファイルは保存されません")
             if len(explain_result) > preview_lines:
-                print(f"... (残り {len(explain_result) - preview_lines} 行)")
+                print(f"... (Remaining {len(explain_result) - preview_lines} lines)")
             if len(explain_cost_result) > cost_preview_lines:
                 print(f"... (残り {len(explain_cost_result) - cost_preview_lines} 行)")
         
@@ -12545,12 +12545,12 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
                     f.write("=" * 80 + "\n\n")
                     f.write(explain_cost_query)
                 
-                print(f"📄 エラー詳細を保存: {error_filename}")
+                print(f"📄 Saved error details: {error_filename}")
                 
             except Exception as file_error:
                 print(f"❌ エラーファイルの保存にも失敗: {str(file_error)}")
         else:
-            print("💡 EXPLAIN_ENABLED=N のため、エラーファイルは保存されません")
+            print("💡 Error file not saved because EXPLAIN_ENABLED=N")
         
         result_dict = {
             'error_message': error_message
