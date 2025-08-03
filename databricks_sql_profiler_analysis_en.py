@@ -87,6 +87,7 @@ EXPLAIN_ENABLED = 'Y'
 # 🐛 Debug mode setting (DEBUG_ENABLED: 'Y' = keep intermediate files, 'N' = keep final files only)
 DEBUG_ENABLED = 'Y'
 
+# COMMAND ----------
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
     """
