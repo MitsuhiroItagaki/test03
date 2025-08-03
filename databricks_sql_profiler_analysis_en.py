@@ -58,6 +58,21 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## ⚙️ Environment Configuration (Please Modify for Your Environment)
+# MAGIC
+# MAGIC **This cell contains settings that need to be modified for each environment.**
+# MAGIC
+# MAGIC 📋 **Configuration Items:**
+# MAGIC - 📁 **JSON File Path**: Specify your SQL profiler JSON file location
+# MAGIC - 🌐 **Output Language**: Choose Japanese ('ja') or English ('en')
+# MAGIC - 🔍 **EXPLAIN Execution**: Enable/disable EXPLAIN statement execution
+# MAGIC - 🐛 **Debug Mode**: Control intermediate file retention
+# MAGIC
+# MAGIC ⚠️ **Important**: Please modify the settings below according to your environment before proceeding.
+
+# COMMAND ----------
+
 # 📁 SQL Profiler JSON File Path Configuration
 # 
 # Please change the JSON_FILE_PATH below to your actual file path:
@@ -65,7 +80,7 @@
 # Notebook environment file path configuration (please select from the following options)
 
 # Option 1: Pre-tuning plan file (recommended)
-JSON_FILE_PATH = '/Workspace/Shared/AutoSQLTuning/Query2.json'
+JSON_FILE_PATH = '/Workspace/Shared/AutoSQLTuning/Query3.json'
 
 # Option 2: To use other JSON files, uncomment and edit the following
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/nophoton.json'
@@ -79,13 +94,25 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
     JSON_FILE_PATH = sys.argv[1]
 
 # 🌐 Output language setting (OUTPUT_LANGUAGE: 'ja' = Japanese, 'en' = English)
-OUTPUT_LANGUAGE = 'en'
+OUTPUT_LANGUAGE = 'ja'
 
 # 🔍 EXPLAIN statement execution setting (EXPLAIN_ENABLED: 'Y' = execute, 'N' = do not execute)
 EXPLAIN_ENABLED = 'Y'
 
 # 🐛 Debug mode setting (DEBUG_ENABLED: 'Y' = keep intermediate files, 'N' = keep final files only)
 DEBUG_ENABLED = 'Y'
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 🔧 Function Definitions & Core Setup
+# MAGIC
+# MAGIC **This cell defines core functions for the analysis tool.**
+# MAGIC
+# MAGIC 📋 **Function Categories:**
+# MAGIC - 🐛 Debug file management
+# MAGIC - 📊 Data processing utilities
+# MAGIC - 🔍 Analysis core functions
 
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
