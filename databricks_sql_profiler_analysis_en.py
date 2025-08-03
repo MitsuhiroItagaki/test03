@@ -13026,6 +13026,27 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 print("   - Consider updating table statistics")
                 print("   - Consider manual optimization with more detailed EXPLAIN information")
                 print("   - Please check data volume and query complexity")
+                
+                # 🔧 FIX: 失敗時もレポート生成を実行（デグレード修正）
+                print("\n🤖 Generating failure analysis report...")
+                optimized_result = retry_result.get('optimized_result', '')
+                final_query = retry_result.get('final_query', original_query_for_explain)
+                performance_comparison = retry_result.get('performance_comparison')
+                best_attempt_number = retry_result.get('best_result', {}).get('attempt_num')
+                
+                saved_files = save_optimized_sql_files(
+                    original_query_for_explain,
+                    final_query,  # 🚀 元クエリまたは失敗レポート
+                    current_metrics,
+                    analysis_result_str,
+                    optimized_result,  # 📊 失敗分析レポート
+                    performance_comparison,  # 🔍 パフォーマンス比較結果（ある場合）
+                    best_attempt_number  # 🎯 ベスト試行番号
+                )
+                
+                print("\n📁 Failure analysis files:")
+                for file_type, filename in saved_files.items():
+                    print(f"   📄 {file_type}: {filename}")
             
             elif retry_result['final_status'] == 'fallback_to_original':
                 print("⚠️ Using original query due to persistent errors in optimized query")
