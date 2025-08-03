@@ -2555,18 +2555,38 @@ def analyze_liquid_clustering_opportunities(profiler_data: Dict[str, Any], metri
         aggregate_summary.append(f"  {i+1}. {item['expression']} (node: {item['node_name']})")
     
     # テーブル情報の重複エントリを統合（フルテーブル名を優先）
+    print(f"🔍 Debug: Table info consolidation starting...")
+    print(f"   Original table_info keys: {list(extracted_data['table_info'].keys())}")
+    
+    # まずフルテーブル名のみを処理
     consolidated_table_info = {}
+    full_table_names = []
+    short_table_names = []
+    
     for table_name, table_info in extracted_data["table_info"].items():
-        # フルテーブル名（ドット区切り）を優先
-        if '.' in table_name:
-            # フルテーブル名の場合、そのまま使用
+        if '.' in table_name and table_name.count('.') >= 2:  # フルテーブル名の条件を厳密化
             consolidated_table_info[table_name] = table_info
+            full_table_names.append(table_name)
+            print(f"   ✅ Added full table: {table_name}, clustering_keys: {table_info.get('current_clustering_keys', [])}")
         else:
-            # 短縮テーブル名の場合、フルテーブル名が存在しないときのみ追加
-            full_table_exists = any(full_name.endswith('.' + table_name) 
-                                  for full_name in consolidated_table_info.keys())
-            if not full_table_exists:
-                consolidated_table_info[table_name] = table_info
+            short_table_names.append((table_name, table_info))
+    
+    # 次に短縮テーブル名を処理（対応するフルテーブル名がない場合のみ）
+    for table_name, table_info in short_table_names:
+        # 対応するフルテーブル名を探す
+        matching_full_table = None
+        for full_name in full_table_names:
+            if full_name.endswith('.' + table_name):
+                matching_full_table = full_name
+                break
+        
+        if not matching_full_table:
+            consolidated_table_info[table_name] = table_info
+            print(f"   ⚠️ Added short table (no full match): {table_name}, clustering_keys: {table_info.get('current_clustering_keys', [])}")
+        else:
+            print(f"   ❌ Skipped short table (has full match): {table_name} → {matching_full_table}")
+    
+    print(f"   Final consolidated keys: {list(consolidated_table_info.keys())}")
     
     # テーブル情報のサマリー（現在のクラスタリングキー情報とフィルタ率を含む）
     table_summary = []
