@@ -9089,7 +9089,6 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
             total_attempts = len(optimization_attempts)
             cost_improvement = "N/A"
             memory_improvement = "N/A"
-            selection_reason = "コスト効率が最も良い試行を選択"
             
             if performance_comparison:
                 cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
@@ -9097,12 +9096,25 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
                 cost_improvement = f"{(1-cost_ratio)*100:.1f}"
                 memory_improvement = f"{(1-memory_ratio)*100:.1f}"
             
+            # 最終選択の表示を分かりやすくする
+            if best_attempt_number == 0:
+                final_selection = "元のクエリ（最適化により改善されなかったため）"
+                selection_reason = "最適化試行で有効な改善が得られなかったため、元のクエリを使用"
+                # 📄 元のクエリファイル名情報を追加
+                if latest_sql_filename:
+                    selection_reason += f"\n- 📄 参考ファイル: {latest_sql_filename}（最適化試行結果）"
+                else:
+                    selection_reason += "\n- 📄 元のクエリ: プロファイラーデータから抽出"
+            else:
+                final_selection = f"試行{best_attempt_number}番"
+                selection_reason = "コスト効率が最も良い試行を選択"
+            
             optimization_process_details = f"""### 🎯 最適化プロセス詳細
 最適化プロセスで実行された試行とその選択理由を以下に示します：
 
 **📊 最適化試行履歴:**
 - 試行回数: {total_attempts}回実行
-- 最終選択: 試行{best_attempt_number}番が最適解として選択
+- 最終選択: {final_selection}
 - 選択理由: {selection_reason}
 
 **🏆 選択された最適化の効果:**
@@ -9321,7 +9333,6 @@ The following topics are analyzed for process evaluation:
             total_attempts = len(optimization_attempts)
             cost_improvement = "N/A"
             memory_improvement = "N/A"
-            selection_reason = "Selected the trial with the best cost efficiency"
             
             if performance_comparison:
                 cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
@@ -9329,13 +9340,26 @@ The following topics are analyzed for process evaluation:
                 cost_improvement = f"{(1-cost_ratio)*100:.1f}"
                 memory_improvement = f"{(1-memory_ratio)*100:.1f}"
             
+            # Make final selection display clearer
+            if best_attempt_number == 0:
+                final_selection_en = "Original Query (no improvement achieved through optimization)"
+                selection_reason_en = "Using original query as optimization trials did not yield effective improvements"
+                # 📄 Add original query file name information
+                if latest_sql_filename:
+                    selection_reason_en += f"\n- 📄 Reference file: {latest_sql_filename} (optimization trial result)"
+                else:
+                    selection_reason_en += "\n- 📄 Original query: Extracted from profiler data"
+            else:
+                final_selection_en = f"Trial {best_attempt_number}"
+                selection_reason_en = "Selected the trial with the best cost efficiency"
+            
             optimization_process_details_en = f"""### 🎯 Optimization Process Details
 The following shows the trials executed during the optimization process and the selection rationale:
 
 **📊 Optimization Trial History:**
 - Trial count: {total_attempts} attempts executed
-- Final selection: Trial {best_attempt_number} was chosen as the optimal solution
-- Selection reason: {selection_reason}
+- Final selection: {final_selection_en}
+- Selection reason: {selection_reason_en}
 
 **🏆 Selected Optimization Effects:**
 - Cost reduction rate: {cost_improvement}% (EXPLAIN COST comparison)
@@ -9591,12 +9615,23 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 最適化されたSQLクエリの前に、以下の情報を必ず含めてください：
 
 **🎯 適用された最適化手法:**
+【重要】最適化プロセス詳細セクションで「元のクエリ（最適化により改善されなかったため）」が選択されている場合：
+- ⚠️ 最適化手法は適用されませんでした（元のクエリを使用）
+- 📄 使用ファイル: プロファイラーデータから抽出された元のクエリ
+- 💡 理由: 最適化試行で有効な改善が得られなかったため
+
+それ以外の場合のみ以下を記載：
 - [実際のクエリ書き換え内容を具体的に要約]
 - 例: "JOIN順序の最適化（小テーブル優先）", "フィルタ条件の早期適用", "インデックスヒントの追加"
 - ❌ 実施されていない手法は記載しない（例: スピルが検出されていない場合はREPARTITION適用を記載しない）
 - ❌ "Liquid Clustering implementation"等の未実施の変更は記載しない
 
 **💰 EXPLAIN COSTベースの効果分析:**
+【重要】元のクエリが選択されている場合：
+- ⚠️ 最適化による改善はありませんでした
+- 📊 元のクエリをそのまま使用することを推奨
+
+それ以外の場合のみ以下を記載：
 - クエリ実行コスト削減率: [cost_ratio]倍 (EXPLAIN COST比較結果)
 - メモリ使用量削減率: [memory_ratio]倍 (統計情報ベース比較)
 - 推定データ処理効率: [processing_efficiency]% (スキャン・JOIN効率改善)
@@ -9699,12 +9734,23 @@ The following shows the trials executed during the optimization process and the 
 Before the optimized SQL query, must include the following information:
 
 **🎯 Applied Optimization Techniques:**
+【Important】If "Original Query (no improvement achieved through optimization)" is selected in the Optimization Process Details section:
+- ⚠️ No optimization techniques were applied (using original query)
+- 📄 Used file: Original query extracted from profiler data
+- 💡 Reason: Optimization trials did not yield effective improvements
+
+Only for other cases, list the following:
 - [Summarize actual query rewriting content specifically]
 - Examples: "JOIN order optimization (small table first)", "Early filter condition application", "Index hint addition"
 - ❌ Do not list techniques that were not implemented (e.g., do not mention REPARTITION application if no spill was detected)
 - ❌ Do not mention unimplemented changes like "Liquid Clustering implementation"
 
 **💰 EXPLAIN COST-Based Effect Analysis:**
+【Important】If original query is selected:
+- ⚠️ No improvement was achieved through optimization
+- 📊 Recommend using the original query as-is
+
+Only for other cases, list the following:
 - Query execution cost reduction: [cost_ratio]x (EXPLAIN COST comparison result)
 - Memory usage reduction: [memory_ratio]x (statistics-based comparison)
 - Estimated data processing efficiency: [processing_efficiency]% (scan/JOIN efficiency improvement)
