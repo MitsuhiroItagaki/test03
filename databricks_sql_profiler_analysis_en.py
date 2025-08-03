@@ -58,21 +58,6 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## ⚙️ Environment Configuration (Please Modify for Your Environment)
-# MAGIC
-# MAGIC **This cell contains settings that need to be modified for each environment.**
-# MAGIC
-# MAGIC 📋 **Configuration Items:**
-# MAGIC - 📁 **JSON File Path**: Specify your SQL profiler JSON file location
-# MAGIC - 🌐 **Output Language**: Choose Japanese ('ja') or English ('en')
-# MAGIC - 🔍 **EXPLAIN Execution**: Enable/disable EXPLAIN statement execution
-# MAGIC - 🐛 **Debug Mode**: Control intermediate file retention
-# MAGIC
-# MAGIC ⚠️ **Important**: Please modify the settings below according to your environment before proceeding.
-
-# COMMAND ----------
-
 # 📁 SQL Profiler JSON File Path Configuration
 # 
 # Please change the JSON_FILE_PATH below to your actual file path:
@@ -80,7 +65,7 @@
 # Notebook environment file path configuration (please select from the following options)
 
 # Option 1: Pre-tuning plan file (recommended)
-JSON_FILE_PATH = '/Workspace/Shared/AutoSQLTuning/Query3.json'
+JSON_FILE_PATH = '/Workspace/Shared/AutoSQLTuning/Query2.json'
 
 # Option 2: To use other JSON files, uncomment and edit the following
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/nophoton.json'
@@ -94,25 +79,13 @@ if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
     JSON_FILE_PATH = sys.argv[1]
 
 # 🌐 Output language setting (OUTPUT_LANGUAGE: 'ja' = Japanese, 'en' = English)
-OUTPUT_LANGUAGE = 'ja'
+OUTPUT_LANGUAGE = 'en'
 
 # 🔍 EXPLAIN statement execution setting (EXPLAIN_ENABLED: 'Y' = execute, 'N' = do not execute)
 EXPLAIN_ENABLED = 'Y'
 
 # 🐛 Debug mode setting (DEBUG_ENABLED: 'Y' = keep intermediate files, 'N' = keep final files only)
 DEBUG_ENABLED = 'Y'
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 🔧 Function Definitions & Core Setup
-# MAGIC
-# MAGIC **This cell defines core functions for the analysis tool.**
-# MAGIC
-# MAGIC 📋 **Function Categories:**
-# MAGIC - 🐛 Debug file management
-# MAGIC - 📊 Data processing utilities
-# MAGIC - 🔍 Analysis core functions
 
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
@@ -6234,7 +6207,7 @@ def extract_structured_physical_plan(physical_plan: str) -> Dict[str, Any]:
         }
         
         # 抽出サマリー生成
-        extracted["extraction_summary"] = f"📊 Structured extraction completed: JOIN({join_count}) SCAN({scan_count}) EXCHANGE({exchange_count}) PHOTON({len(extracted['photon_usage'])})"
+        extracted["extraction_summary"] = f"📊 構造化抽出完了: JOIN({join_count}) SCAN({scan_count}) EXCHANGE({exchange_count}) PHOTON({len(extracted['photon_usage'])})"
         
         # 🚨 トークン制限対策: 情報量が多い場合の自動要約
         total_joins_scans = join_count + scan_count
@@ -6395,7 +6368,7 @@ def extract_structured_cost_statistics(explain_cost_content: str) -> Dict[str, A
         }
         
         # 抽出サマリー生成
-        extracted["extraction_summary"] = f"💰 Statistics extraction completed: Tables({tables_found}) Cost({costs_found}) Memory({memory_found}) BROADCAST candidates({len(broadcast_candidates)})"
+        extracted["extraction_summary"] = f"💰 統計抽出完了: テーブル({tables_found}) コスト({costs_found}) メモリ({memory_found}) BROADCAST候補({len(broadcast_candidates)})"
         
     except Exception as e:
         extracted["extraction_error"] = str(e)
@@ -7042,11 +7015,11 @@ Sparkの自動JOIN戦略を使用（エラー回避のためヒントは使用�
    - メモリ効率的なJOIN順序の検討
    - 中間結果のサイズ削減
 
-2. **🔄 REPARTITIONヒント適用**（スピル検出時のみ）
-   - **スピルが検出された場合のみ**REPARTITIONヒントを適用
-   - 検出されたShuffle attributesを基に具体的なREPARTITIONヒントを適用
-   - GROUP BY前またはJOIN前の適切な位置にREPARTITIONを配置
-   - 推奨パーティション数を使用
+2. **🔄 REPARTITIONヒント適用**（🚨 **スピル検出時の場合のみ** - 重要な条件）
+   - ❌ **スピルが検出されていない場合**: REPARTITIONヒントは一切適用しない
+   - ✅ **スピルが検出された場合のみ**: REPARTITIONヒントを適用
+   - ⚠️ **記載ルール**: スピル未検出の場合は「REPARTITIONの適用」を一切記載しない
+   - 検出されたShuffle attributesを基に具体的なREPARTITIONヒントを適用（スピル検出時のみ）
 
 3. **⚖️ データスキュー対策**
    - スキューパーティション（10個以上）検出時は分散改善を優先
@@ -7118,7 +7091,12 @@ Sparkの自動JOIN戦略を使用（エラー回避のためヒントは使用�
 【🔄 REPARTITIONヒント適用ルール - 構文エラー防止】
 REPARTITIONヒントを付与する場合は以下の最適化ルールを守ってください：
 
-- **シャッフルの効率化・スキュー防止などパフォーマンス最適化が目的であるため、スピルアウトしていない場合には REPARTITION ヒントは不要**
+🚨 **最重要ルール**: 
+- **❌ スピル未検出時**: REPARTITIONヒントは絶対に適用・記載してはいけない
+- **✅ スピル検出時のみ**: REPARTITIONヒントを適用
+- **⚠️ 記載禁止**: スピルが検出されていない場合、推奨事項や緊急対応に「REPARTITION適用」を含めない
+
+技術詳細:
 - **REPARTITIONヒントは SELECT /*+ REPARTITION(パーティション数, カラム名) の形式で指定**
 - **REPARTITIONヒントの適用位置は、対象となるJOINやGROUP BYを含むSELECTの直前であるため、出力されたoutput_explain_plan_*.txtのPhysical Planから実行計画を理解し、適切な位置にREPARTITION ヒントを付与すること**
 
@@ -7128,13 +7106,12 @@ REPARTITIONヒントを付与する場合は以下の最適化ルールを守っ
 3. **複数のREPARTITIONヒントは各サブクエリ内部に個別に配置する**
 4. **パーティション数とカラム名は必須パラメータとして指定する**
 
-従来のルール：
-- **スピルが検出された場合のみ適用**
-- GROUP BYクエリの場合: GROUP BY前にREPARTITION(推奨数, group_by_column)
-- JOINクエリの場合: JOIN前にREPARTITION(推奨数, join_key)
-- 複数テーブルの場合: 最も大きなテーブルをリパーティション
-- 推奨パーティション数: 検出されたタスク数の2倍以上、最低200
-- スピルが検出されていない場合: REPARTITIONヒントは適用しない
+🚨 **REPARTITIONヒント適用の厳格なルール**：
+- **❌ スピル未検出**: REPARTITIONヒントは絶対に適用しない・記載しない
+- **✅ スピル検出時のみ**: GROUP BY前にREPARTITION(推奨数, group_by_column)
+- **✅ スピル検出時のみ**: JOIN前にREPARTITION(推奨数, join_key)
+- **重要**: スピルが検出されていない場合は「REPARTITIONの適用」を推奨事項に含めない
+- **記載禁止**: スピル未検出時に「緊急対応: REPARTITIONの適用」等を記載してはいけない
 
 **🚨 CREATE TABLE AS SELECT (CTAS) でのREPARTITION配置の重要な注意事項:**
 - CREATE TABLE AS SELECT文では、トップレベルのSELECT句にREPARTITIONヒントを配置すると、**最終的な出力書き込み段階のみに影響**し、JOIN や集計などの中間処理段階には影響しない
@@ -7269,12 +7246,17 @@ FROM table1 cs
 【出力形式】
 ## 🚀 処理速度重視の最適化されたSQL
 
-**適用した最適化手法**:
-- [具体的な最適化手法のリスト]
-- [REPARTITIONヒントの適用詳細（スピル検出時のみ）]
-- [JOIN順序最適化の詳細]
-- [CTE構造による段階的最適化の適用詳細]
-- [推定される性能改善効果]
+**🎯 実際に適用した最適化手法** (実施していない手法は記載禁止):
+- [具体的に実装された最適化手法のみをリスト]
+- ❌ スピル未検出の場合: REPARTITIONヒント適用は記載しない
+- ❌ 実際に変更していない要素: 「最適化」として記載しない
+- ✅ 実際の変更内容のみ: JOIN順序変更、CTE構造化、フィルタ改善等
+
+**💰 具体的なコスト削減効果**:
+- 予想実行時間改善: [元の時間]秒 → [予想時間]秒 (約[X]%削減)
+- 予想データ読み取り削減: [元の読み取り量]GB → [予想読み取り量]GB (約[X]%削減)
+- 予想メモリ使用量削減: [メモリ使用量] → [予想使用量] (約[X]%削減)
+- ⚠️ 改善効果は実際の実行で検証が必要
 
 **🚨 構文エラー防止の最終確認**:
 - ✅ REPARTITIONヒントは適切にメインクエリのSELECT直後に配置されている
@@ -9482,13 +9464,24 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 ```
 # 📊 SQL最適化レポート
 
-## 🎯 1. ボトルネック分析結果
+## 🔍 1. 分析サマリー
 
-### 🤖 AIによる詳細分析
+### 統合パフォーマンス分析表
+主要課題とパフォーマンス指標を以下の統合表形式でまとめてください：
 
-#### (1) 主要ボトルネックと原因
-#### (2) パフォーマンス指標の評価
-#### (3) 推奨改善アクション
+🔍 分析サマリー
+クエリ実行時間は[X.X]秒と[評価]ですが、以下の最適化ポイントが特定されました：
+
+| 項目 | 現在の状況 | 評価 | 優先度 |
+|------|-----------|------|--------|
+| 実行時間 | [X.X]秒 | ✅ 良好 / ⚠️ 改善必要 | - |
+| データ読み取り量 | [X.XX]GB | ✅ 良好 / ⚠️ 大容量 | - |
+| Photon有効化 | はい/いいえ | ✅ 良好 / ❌ 未有効 | - |
+| シャッフル操作 | [N]回 | ✅ 良好 / ⚠️ 多い | 🚨 高 / ⚠️ 中 |
+| スピル発生 | なし/あり | ✅ 良好 / ❌ 問題 | 🚨 高 / - |
+| キャッシュ効率 | [X.X]% | ✅ 良好 / ⚠️ 低効率 | ⚠️ 中 |
+| フィルタ効率 | [X.X]% | ✅ 良好 / ⚠️ 低効率 | ⚠️ 中 |
+| データスキュー | AQE対応済 / 未検出 | ✅ 対応済 / ✅ 良好 | - |
 
 ## 📊 2. TOP10時間消費プロセス分析
 
@@ -9500,14 +9493,30 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 
 ## 🚀 4. 最適化されたSQLクエリ
 
-### 💡 改善提案
+### 💡 具体的な最適化内容とコスト効果
+最適化されたSQLクエリの前に、以下の情報を必ず含めてください：
+
+**🎯 適用された最適化手法:**
+- [実際に適用された最適化手法のみをリスト]
+- ❌ 実施されていない手法は記載しない（例: スピルが検出されていない場合はREPARTITION適用を記載しない）
+
+**💰 期待されるコスト削減効果:**
+- 実行時間: [現在] → [予想] (約[X]%改善)
+- データ読み取り: [現在] → [予想] (約[X]%削減)  
+- メモリ使用量: [現在] → [予想] (約[X]%削減)
 ```
+
+【🚨 REPARTITIONに関する重要な修正指示】
+- **スピルが検出されていない場合**: 「REPARTITIONの適用」を推奨改善アクションに含めない
+- **実際に適用されていない最適化手法**: 「緊急対応」や「推奨改善アクション」に記載しない
+- **事実ベースの記載**: 実際に検出された問題と適用された対策のみを記載
 
 【厳格な禁止事項】
 - TOP10を絶対にTOP5に変更しない
 - "=========="等の区切り文字を削除（ただし絵文字による視覚的表示は保持）
 - 番号付きリストで同じ番号を重複させない
 - メトリクス値や技術情報を削除しない
+- 実施されていない最適化手法を「実施済み」として記載しない
 
 【🚨 重要な情報保持の必須要件】
 - **現在のクラスタリングキー情報**: 各テーブルの「現在のクラスタリングキー: XX」情報は必ず保持
@@ -9519,11 +9528,14 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 
 【処理要件】
 1. 上記の見出し構造を必ず使用
-2. 技術情報とメトリクスを完全保持（特に上記の重要情報）
-3. TOP10表示を維持
-4. 絵文字による視覚的表示を保持（🚨 CRITICAL、⚠️ HIGH、✅良好等）
-5. 不要な区切り文字（========等）のみ削除
-6. 現在のクラスタリングキー情報とフィルタ率情報は絶対に保持
+2. 主要課題とパフォーマンス指標を統合表形式でまとめる
+3. 実際に適用された最適化手法のみを記載（実施されていない手法は記載しない）
+4. 具体的なコスト効果を数値で示す
+5. 技術情報とメトリクスを完全保持（特に上記の重要情報）
+6. TOP10表示を維持
+7. 絵文字による視覚的表示を保持（🚨 CRITICAL、⚠️ HIGH、✅良好等）
+8. 不要な区切り文字（========等）のみ削除
+9. 現在のクラスタリングキー情報とフィルタ率情報は絶対に保持
 
 【現在のレポート】
 ```
@@ -9540,13 +9552,24 @@ As a technical document editor, please refine the following Databricks SQL perfo
 ```
 # 📊 SQL Optimization Report
 
-## 🎯 1. Bottleneck Analysis Results
+## 🔍 1. Analysis Summary
 
-### 🤖 AI-Powered Detailed Analysis
+### Integrated Performance Analysis Table
+Merge major issues and performance indicators into the following integrated table format:
 
-#### (1) Major Bottlenecks and Root Causes
-#### (2) Performance Metrics Evaluation
-#### (3) Recommended Improvement Actions
+🔍 Analysis Summary
+Query execution time is [X.X] seconds, which is [evaluation], but the following optimization points were identified:
+
+| Item | Current Status | Evaluation | Priority |
+|------|---------------|------------|----------|
+| Execution Time | [X.X]s | ✅ Good / ⚠️ Needs Improvement | - |
+| Data Read Volume | [X.XX]GB | ✅ Good / ⚠️ Large Volume | - |
+| Photon Enabled | Yes/No | ✅ Good / ❌ Not Enabled | - |
+| Shuffle Operations | [N] times | ✅ Good / ⚠️ High | 🚨 High / ⚠️ Medium |
+| Spill Occurrence | None/Present | ✅ Good / ❌ Issues | 🚨 High / - |
+| Cache Efficiency | [X.X]% | ✅ Good / ⚠️ Low Efficiency | ⚠️ Medium |
+| Filter Efficiency | [X.X]% | ✅ Good / ⚠️ Low Efficiency | ⚠️ Medium |
+| Data Skew | AQE Handled / Not Detected | ✅ Handled / ✅ Good | - |
 
 ## 📊 2. TOP10 Time-Consuming Processes Analysis
 
@@ -9558,14 +9581,30 @@ As a technical document editor, please refine the following Databricks SQL perfo
 
 ## 🚀 4. Optimized SQL Query
 
-### 💡 Improvement Proposals
+### 💡 Specific Optimization Details and Cost Effects
+Before the optimized SQL query, must include the following information:
+
+**🎯 Applied Optimization Techniques:**
+- [List only actually applied optimization techniques]
+- ❌ Do not list techniques that were not implemented (e.g., do not mention REPARTITION application if no spill was detected)
+
+**💰 Expected Cost Reduction Effects:**
+- Execution time: [current] → [predicted] (approximately [X]% improvement)
+- Data read: [current] → [predicted] (approximately [X]% reduction)  
+- Memory usage: [current] → [predicted] (approximately [X]% reduction)
 ```
+
+【🚨 Critical REPARTITION Correction Instructions】
+- **When no spill is detected**: Do not include "REPARTITION application" in recommended improvement actions
+- **Actually non-applied optimization techniques**: Do not list in "Emergency Response" or "Recommended Improvement Actions"
+- **Fact-based reporting**: Only list actually detected problems and applied countermeasures
 
 【Strict Prohibitions】
 - Never change TOP10 to TOP5
 - Remove separator characters like "==========" (but keep emoji visual displays)
 - Do not duplicate numbered list items
 - Do not delete metric values or technical information
+- Do not report non-implemented optimization techniques as "implemented"
 
 【🚨 Critical Information Preservation Requirements】
 - **Current clustering key information**: Must preserve each table's "Current clustering key: XX" information
@@ -9577,11 +9616,14 @@ As a technical document editor, please refine the following Databricks SQL perfo
 
 【Processing Requirements】
 1. Must use the above heading structure
-2. Completely preserve technical information and metrics (especially the important information above)
-3. Maintain TOP10 display
-4. Keep emoji visual displays (🚨 CRITICAL, ⚠️ HIGH, ✅ Good, etc.)
-5. Remove only unnecessary separator characters (======== etc.)
-6. Absolutely preserve current clustering key information and filter rate information
+2. Merge major issues and performance indicators into integrated table format
+3. List only actually applied optimization techniques (do not list non-implemented techniques)
+4. Show specific cost effects with numerical values
+5. Completely preserve technical information and metrics (especially the important information above)
+6. Maintain TOP10 display
+7. Keep emoji visual displays (🚨 CRITICAL, ⚠️ HIGH, ✅ Good, etc.)
+8. Remove only unnecessary separator characters (======== etc.)
+9. Absolutely preserve current clustering key information and filter rate information
 
 【Current Report】
 ```
@@ -11583,16 +11625,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         # LLMエラーチェック
         if isinstance(optimized_query, str) and optimized_query.startswith("LLM_ERROR:"):
             print(f"❌ LLM error occurred in optimization attempt {attempt_num}")
-            
-            # 🐛 DEBUG: LLMエラーの場合もデバッグファイルとして保存
-            error_message = optimized_query[10:]  # Remove "LLM_ERROR:" prefix
-            save_debug_query_trial(f"-- LLM Error occurred\n-- Error: {error_message}\n-- Original query used as fallback\n\n{original_query}", 
-                                 attempt_num, "llm_error", error_info=error_message[:100])
-            
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'llm_error',
-                'error': error_message,
+                'error': optimized_query[10:],
                 'optimized_query': None
             })
             continue
@@ -11611,16 +11647,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         
         if explain_result['final_status'] != 'success':
             print(f"⚠️ Attempt {attempt_num}: EXPLAIN execution failed")
-            
-            # 🐛 DEBUG: EXPLAIN失敗の場合もデバッグファイルとして保存
-            error_details = explain_result.get('error_details', 'Unknown error')
-            save_debug_query_trial(f"-- EXPLAIN execution failed\n-- Error: {error_details}\n-- Generated query below:\n\n{current_query}", 
-                                 attempt_num, "explain_failed", error_info=error_details[:100])
-            
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'explain_failed',
-                'error': error_details,
+                'error': explain_result.get('error_details', 'Unknown error'),
                 'optimized_query': current_query
             })
             continue
@@ -11927,11 +11957,6 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 degradation_analysis = analyze_degradation_causes(performance_comparison, original_cost_content, optimized_cost_content)
                 
                 print(f"   Details: {', '.join(performance_comparison.get('details', []))}")
-                
-                # 🐛 DEBUG: 成功した最適化クエリも保存（パフォーマンス結果付き）
-                performance_summary = f"Cost ratio: {current_cost_ratio:.3f}, Memory ratio: {current_memory_ratio:.3f}, Status: {status_reason}"
-                save_debug_query_trial(current_query, attempt_num, status_reason.replace('_', '-'), 
-                                     error_info=performance_summary)
                 
                 optimization_attempts.append({
                     'attempt': attempt_num,
@@ -13070,27 +13095,6 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 print("   - Consider updating table statistics")
                 print("   - Consider manual optimization with more detailed EXPLAIN information")
                 print("   - Please check data volume and query complexity")
-                
-                # 🔧 FIX: 失敗時もレポート生成を実行（デグレード修正）
-                print("\n🤖 Generating failure analysis report...")
-                optimized_result = retry_result.get('optimized_result', '')
-                final_query = retry_result.get('final_query', original_query_for_explain)
-                performance_comparison = retry_result.get('performance_comparison')
-                best_attempt_number = retry_result.get('best_result', {}).get('attempt_num')
-                
-                saved_files = save_optimized_sql_files(
-                    original_query_for_explain,
-                    final_query,  # 🚀 元クエリまたは失敗レポート
-                    current_metrics,
-                    analysis_result_str,
-                    optimized_result,  # 📊 失敗分析レポート
-                    performance_comparison,  # 🔍 パフォーマンス比較結果（ある場合）
-                    best_attempt_number  # 🎯 ベスト試行番号
-                )
-                
-                print("\n📁 Failure analysis files:")
-                for file_type, filename in saved_files.items():
-                    print(f"   📄 {file_type}: {filename}")
             
             elif retry_result['final_status'] == 'fallback_to_original':
                 print("⚠️ Using original query due to persistent errors in optimized query")
