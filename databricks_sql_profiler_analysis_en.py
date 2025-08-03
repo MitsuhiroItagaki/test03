@@ -2953,6 +2953,10 @@ def translate_explain_summary_to_english(explain_content: str) -> str:
     Returns:
         str: 英語版EXPLAIN要約
     """
+    # OUTPUT_LANGUAGEが'en'の場合は翻訳をスキップ
+    output_language = globals().get('OUTPUT_LANGUAGE', 'ja')
+    if output_language == 'en':
+        return explain_content
     # 日本語から英語への翻訳マッピング
     translation_map = {
         # ヘッダー部分
@@ -8249,8 +8253,29 @@ def summarize_explain_results_with_llm(explain_content: str, explain_cost_conten
                 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
                 summary_filename = f"output_explain_summary_{query_type}_{timestamp}.md"
                 
-                # 要約結果をMarkdown形式で保存
-                summary_content = f"""# EXPLAIN + EXPLAIN COST要約結果 ({query_type})
+                # 要約結果をMarkdown形式で保存（OUTPUT_LANGUAGEに応じて言語を切り替え）
+                output_language = globals().get('OUTPUT_LANGUAGE', 'ja')
+                
+                if output_language == 'en':
+                    summary_content = f"""# EXPLAIN + EXPLAIN COST Summary Results ({query_type})
+
+## 📊 Basic Information
+- Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+- Query Type: {query_type}
+- Original Size: EXPLAIN({len(explain_content):,} chars) + EXPLAIN COST({len(explain_cost_content):,} chars) = {total_size:,} chars
+- Summary Size: {len(summary_text):,} chars
+- Compression Ratio: {total_size//len(summary_text) if len(summary_text) > 0 else 0}x
+
+## 🧠 LLM Summary Results
+
+{summary_text}
+
+## 💰 Statistical Information Extraction
+
+{extract_cost_statistics_from_explain_cost(explain_cost_content)}
+"""
+                else:
+                    summary_content = f"""# EXPLAIN + EXPLAIN COST要約結果 ({query_type})
 
 ## 📊 基本情報
 - 生成日時: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -9566,8 +9591,10 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 最適化されたSQLクエリの前に、以下の情報を必ず含めてください：
 
 **🎯 適用された最適化手法:**
-- [実際に適用された最適化手法のみをリスト]
+- [実際のクエリ書き換え内容を具体的に要約]
+- 例: "JOIN順序の最適化（小テーブル優先）", "フィルタ条件の早期適用", "インデックスヒントの追加"
 - ❌ 実施されていない手法は記載しない（例: スピルが検出されていない場合はREPARTITION適用を記載しない）
+- ❌ "Liquid Clustering implementation"等の未実施の変更は記載しない
 
 **💰 EXPLAIN COSTベースの効果分析:**
 - クエリ実行コスト削減率: [cost_ratio]倍 (EXPLAIN COST比較結果)
@@ -9591,6 +9618,7 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 - 番号付きリストで同じ番号を重複させない
 - メトリクス値や技術情報を削除しない
 - 実施されていない最適化手法を「実施済み」として記載しない
+- 同じコスト比や効果数値を複数個所で重複記載しない（最適化プロセス詳細で一度記載すれば十分）
 
 【🚨 重要な情報保持の必須要件】
 - **現在のクラスタリングキー情報**: 各テーブルの「現在のクラスタリングキー: XX」情報は必ず保持
@@ -9671,8 +9699,10 @@ The following shows the trials executed during the optimization process and the 
 Before the optimized SQL query, must include the following information:
 
 **🎯 Applied Optimization Techniques:**
-- [List only actually applied optimization techniques]
+- [Summarize actual query rewriting content specifically]
+- Examples: "JOIN order optimization (small table first)", "Early filter condition application", "Index hint addition"
 - ❌ Do not list techniques that were not implemented (e.g., do not mention REPARTITION application if no spill was detected)
+- ❌ Do not mention unimplemented changes like "Liquid Clustering implementation"
 
 **💰 EXPLAIN COST-Based Effect Analysis:**
 - Query execution cost reduction: [cost_ratio]x (EXPLAIN COST comparison result)
@@ -9696,6 +9726,7 @@ Before the optimized SQL query, must include the following information:
 - Do not duplicate numbered list items
 - Do not delete metric values or technical information
 - Do not report non-implemented optimization techniques as "implemented"
+- Do not duplicate the same cost ratios or effect numbers in multiple sections (once in optimization process details is sufficient)
 
 【🚨 Critical Information Preservation Requirements】
 - **Current clustering key information**: Must preserve each table's "Current clustering key: XX" information
@@ -10561,7 +10592,7 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
         report_data = llm_response if llm_response else optimized_result
     
     initial_report = generate_comprehensive_optimization_report(
-        query_id, report_data, metrics, analysis_result, performance_comparison, best_attempt_number
+        query_id, report_data, metrics, analysis_result, performance_comparison, best_attempt_number, optimization_attempts
     )
     
     # LLMでレポートを推敲（詳細な技術情報を保持）
