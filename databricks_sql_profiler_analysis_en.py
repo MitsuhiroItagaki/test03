@@ -7252,11 +7252,11 @@ FROM table1 cs
 - ❌ 実際に変更していない要素: 「最適化」として記載しない
 - ✅ 実際の変更内容のみ: JOIN順序変更、CTE構造化、フィルタ改善等
 
-**💰 具体的なコスト削減効果**:
-- 予想実行時間改善: [元の時間]秒 → [予想時間]秒 (約[X]%削減)
-- 予想データ読み取り削減: [元の読み取り量]GB → [予想読み取り量]GB (約[X]%削減)
-- 予想メモリ使用量削減: [メモリ使用量] → [予想使用量] (約[X]%削減)
-- ⚠️ 改善効果は実際の実行で検証が必要
+**💰 EXPLAIN COSTベースの効果分析**:
+- クエリ実行コスト削減率: [cost_ratio]倍 (EXPLAIN COST比較結果)
+- メモリ使用量削減率: [memory_ratio]倍 (統計情報ベース比較)
+- 推定データ処理効率: [processing_efficiency]% (スキャン・JOIN効率改善)
+- ⚠️ 数値は最適化プロセス中のコスト比較結果に基づく
 
 **🚨 構文エラー防止の最終確認**:
 - ✅ REPARTITIONヒントは適切にメインクエリのSELECT直後に配置されている
@@ -9500,16 +9500,21 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 - [実際に適用された最適化手法のみをリスト]
 - ❌ 実施されていない手法は記載しない（例: スピルが検出されていない場合はREPARTITION適用を記載しない）
 
-**💰 期待されるコスト削減効果:**
-- 実行時間: [現在] → [予想] (約[X]%改善)
-- データ読み取り: [現在] → [予想] (約[X]%削減)  
-- メモリ使用量: [現在] → [予想] (約[X]%削減)
+**💰 EXPLAIN COSTベースの効果分析:**
+- クエリ実行コスト削減率: [cost_ratio]倍 (EXPLAIN COST比較結果)
+- メモリ使用量削減率: [memory_ratio]倍 (統計情報ベース比較)
+- 推定データ処理効率: [processing_efficiency]% (スキャン・JOIN効率改善)
 ```
 
 【🚨 REPARTITIONに関する重要な修正指示】
 - **スピルが検出されていない場合**: 「REPARTITIONの適用」を推奨改善アクションに含めない
 - **実際に適用されていない最適化手法**: 「緊急対応」や「推奨改善アクション」に記載しない
 - **事実ベースの記載**: 実際に検出された問題と適用された対策のみを記載
+
+【💰 コスト効果分析での必須使用データ】
+- **performance_comparison結果を必ず使用**: cost_ratio、memory_ratio等の実際の比較値
+- **実行時間予測は使用禁止**: 不正確なため記載しない
+- **EXPLAIN COSTベースの数値のみ**: 最適化プロセス中の実際の計算結果を使用
 
 【厳格な禁止事項】
 - TOP10を絶対にTOP5に変更しない
@@ -9588,16 +9593,21 @@ Before the optimized SQL query, must include the following information:
 - [List only actually applied optimization techniques]
 - ❌ Do not list techniques that were not implemented (e.g., do not mention REPARTITION application if no spill was detected)
 
-**💰 Expected Cost Reduction Effects:**
-- Execution time: [current] → [predicted] (approximately [X]% improvement)
-- Data read: [current] → [predicted] (approximately [X]% reduction)  
-- Memory usage: [current] → [predicted] (approximately [X]% reduction)
+**💰 EXPLAIN COST-Based Effect Analysis:**
+- Query execution cost reduction: [cost_ratio]x (EXPLAIN COST comparison result)
+- Memory usage reduction: [memory_ratio]x (statistics-based comparison)
+- Estimated data processing efficiency: [processing_efficiency]% (scan/JOIN efficiency improvement)
 ```
 
 【🚨 Critical REPARTITION Correction Instructions】
 - **When no spill is detected**: Do not include "REPARTITION application" in recommended improvement actions
 - **Actually non-applied optimization techniques**: Do not list in "Emergency Response" or "Recommended Improvement Actions"
 - **Fact-based reporting**: Only list actually detected problems and applied countermeasures
+
+【💰 Required Data for Cost Effect Analysis】
+- **Must use performance_comparison results**: cost_ratio, memory_ratio and other actual comparison values
+- **Execution time prediction is prohibited**: Do not include due to inaccuracy
+- **EXPLAIN COST-based numbers only**: Use actual calculation results from optimization process
 
 【Strict Prohibitions】
 - Never change TOP10 to TOP5
