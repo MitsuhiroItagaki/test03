@@ -2473,18 +2473,35 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
         print(f"ℹ️ No current clustering keys detected")
     
     # 🚨 重要: 抽出したテーブルサイズ情報をtable_infoに統合
+    def normalize_table_name(table_name):
+        """テーブル名を正規化（フルネームと短縮名の両方をチェック）"""
+        if not table_name:
+            return None
+        # 既存のテーブル情報からマッチするものを探す
+        for existing_table in extracted_data["table_info"].keys():
+            if (existing_table == table_name or 
+                existing_table.endswith('.' + table_name) or
+                table_name.endswith('.' + existing_table.split('.')[-1])):
+                return existing_table
+        return table_name
+    
     for table_name, size_info in table_size_info.items():
-        if table_name not in extracted_data["table_info"]:
-            extracted_data["table_info"][table_name] = {
+        # テーブル名を正規化して既存エントリとマッチ
+        normalized_table_name = normalize_table_name(table_name)
+        
+        if normalized_table_name not in extracted_data["table_info"]:
+            # 新しいエントリを作成（クラスタリング情報なし）
+            extracted_data["table_info"][normalized_table_name] = {
                 "node_name": f"Scan {table_name}",
-                "node_tag": "SCAN",
+                "node_tag": "SCAN", 
                 "node_id": f"scan_{table_name.replace('.', '_')}",
-                "current_clustering_keys": [],  # TODO: 実際のクラスタリングキーを抽出
+                "current_clustering_keys": [],  # クラスタリング情報は別途抽出済み
                 "filter_info": {}
             }
+        # 既存エントリがある場合は、current_clustering_keysは保持
         
-        # テーブルサイズ情報を追加
-        extracted_data["table_info"][table_name].update({
+        # テーブルサイズ情報を追加（正規化されたテーブル名を使用）
+        extracted_data["table_info"][normalized_table_name].update({
             "table_size_gb": size_info['files_read_gb'],
             "files_read_bytes": size_info['files_read_bytes'],
             "files_pruned_bytes": size_info['files_pruned_bytes'],
