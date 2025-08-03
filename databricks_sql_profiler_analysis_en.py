@@ -87,6 +87,10 @@ EXPLAIN_ENABLED = 'Y'
 # 🐛 Debug mode setting (DEBUG_ENABLED: 'Y' = keep intermediate files, 'N' = keep final files only)
 DEBUG_ENABLED = 'Y'
 
+# 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
+CATALOG = 'tpcds'
+DATABASE = 'tpcds_sf1000_delta_lc'
+
 # COMMAND ----------
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
@@ -169,10 +173,6 @@ MAX_RETRIES = 3
 # - When maximum attempts reached: Use original query
 # Note: This is a separate parameter from syntax error correction (MAX_RETRIES)
 MAX_OPTIMIZATION_ATTEMPTS = 3
-
-# 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
-CATALOG = 'tpcds'
-DATABASE = 'tpcds_sf1000_delta_lc'
 
 # 💡 Usage examples:
 # OUTPUT_LANGUAGE = 'ja'  # Output files in Japanese
