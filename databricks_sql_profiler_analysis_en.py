@@ -1353,6 +1353,7 @@ def calculate_filter_rate(node: Dict[str, Any]) -> Dict[str, Any]:
     filter_rate = None
     files_pruned_bytes = 0
     files_read_bytes = 0
+    actual_io_bytes = 0  # 実際のI/O読み込み量
     debug_info = []
     
     # Target metric names for search (prioritizing patterns confirmed in actual JSON files)
@@ -1369,6 +1370,14 @@ def calculate_filter_rate(node: Dict[str, Any]) -> Dict[str, Any]:
         "Files read size",
         "Read files size",
         "Num files read size"
+    ]
+    
+    # 実際のI/O読み込み量（優先的に使用）
+    actual_io_metrics = [
+        "Size of data read with io requests",  # 実際のストレージからの読み込み量
+        "Data read with io requests",
+        "IO request data size",
+        "Actual data read size"
     ]
     
     # detailed_metricsから検索
@@ -1394,6 +1403,14 @@ def calculate_filter_rate(node: Dict[str, Any]) -> Dict[str, Any]:
                 files_read_bytes += metric_value  # 複数のメトリクスがある場合は合計
                 if debug_mode:
                     debug_info.append(f"Found read metric: {metric_label} = {metric_value}")
+                break
+        
+        # 実際のI/O読み込み量（最優先）
+        for target in actual_io_metrics:
+            if target in metric_label and metric_value > 0:
+                actual_io_bytes += metric_value
+                if debug_mode:
+                    debug_info.append(f"Found actual IO metric: {metric_label} = {metric_value}")
                 break
     
     # raw_metricsから検索（フォールバック）
@@ -1421,19 +1438,40 @@ def calculate_filter_rate(node: Dict[str, Any]) -> Dict[str, Any]:
                     if debug_mode:
                         debug_info.append(f"Found read metric in raw: {metric_label} = {metric_value}")
                     break
+            
+            # 実際のI/O読み込み量（raw_metricsからも検索）
+            for target in actual_io_metrics:
+                if target in metric_label and metric_value > 0:
+                    actual_io_bytes += metric_value
+                    if debug_mode:
+                        debug_info.append(f"Found actual IO metric in raw: {metric_label} = {metric_value}")
+                    break
     
-    # フィルタ率計算（正しい式: プルーニング効率）
-    total_available_bytes = files_read_bytes + files_pruned_bytes
-    if total_available_bytes > 0:
-        filter_rate = files_pruned_bytes / total_available_bytes
+    # フィルタ率計算（I/O実績を優先、フォールバックでプルーニング効率）
+    if actual_io_bytes > 0 and files_read_bytes > 0:
+        # 新しい計算方式: 実際のI/O効率
+        filter_rate = (files_read_bytes - actual_io_bytes) / files_read_bytes
+        if debug_mode:
+            debug_info.append(f"Using IO-based calculation: ({files_read_bytes/1024**3:.2f}GB - {actual_io_bytes/1024**3:.2f}GB) / {files_read_bytes/1024**3:.2f}GB = {filter_rate:.3f}")
     else:
-        filter_rate = 0.0
+        # 従来の計算方式: プルーニング効率
+        total_available_bytes = files_read_bytes + files_pruned_bytes
+        if total_available_bytes > 0:
+            filter_rate = files_pruned_bytes / total_available_bytes
+            if debug_mode:
+                debug_info.append(f"Using pruning-based calculation: {files_pruned_bytes/1024**3:.2f}GB / {total_available_bytes/1024**3:.2f}GB = {filter_rate:.3f}")
+        else:
+            filter_rate = 0.0
+            if debug_mode:
+                debug_info.append("No filter metrics available, using 0.0")
     
     result = {
         "filter_rate": filter_rate,
         "files_pruned_bytes": files_pruned_bytes,
         "files_read_bytes": files_read_bytes,
-        "has_filter_metrics": (files_read_bytes > 0 or files_pruned_bytes > 0)
+        "actual_io_bytes": actual_io_bytes,  # 実際のI/O読み込み量を追加
+        "has_filter_metrics": (files_read_bytes > 0 or files_pruned_bytes > 0),
+        "calculation_method": "io_based" if (actual_io_bytes > 0 and files_read_bytes > 0) else "pruning_based"
     }
     
     if debug_mode:
@@ -1456,9 +1494,15 @@ def format_filter_rate_display(filter_result: Dict[str, Any]) -> str:
     
     filter_rate = filter_result["filter_rate"]
     files_read_gb = filter_result["files_read_bytes"] / (1024 * 1024 * 1024)
-    files_pruned_gb = filter_result["files_pruned_bytes"] / (1024 * 1024 * 1024)
     
-    return f"📂 Filter rate: {filter_rate:.1%} (read: {files_read_gb:.2f}GB, pruned: {files_pruned_gb:.2f}GB)"
+    # 計算方式に応じて表示を調整
+    if filter_result.get("calculation_method") == "io_based" and filter_result.get("actual_io_bytes", 0) > 0:
+        actual_io_gb = filter_result["actual_io_bytes"] / (1024 * 1024 * 1024)
+        effective_filtered_gb = files_read_gb - actual_io_gb
+        return f"📂 Filter rate: {filter_rate:.1%} (read: {files_read_gb:.2f}GB, actual: {actual_io_gb:.2f}GB)"
+    else:
+        files_pruned_gb = filter_result["files_pruned_bytes"] / (1024 * 1024 * 1024)
+        return f"📂 Filter rate: {filter_rate:.1%} (read: {files_read_gb:.2f}GB, pruned: {files_pruned_gb:.2f}GB)"
 
 def extract_detailed_bottleneck_analysis(extracted_metrics: Dict[str, Any]) -> Dict[str, Any]:
     """
