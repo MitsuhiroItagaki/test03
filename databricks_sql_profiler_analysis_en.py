@@ -6207,7 +6207,7 @@ def extract_structured_physical_plan(physical_plan: str) -> Dict[str, Any]:
         }
         
         # 抽出サマリー生成
-        extracted["extraction_summary"] = f"📊 構造化抽出完了: JOIN({join_count}) SCAN({scan_count}) EXCHANGE({exchange_count}) PHOTON({len(extracted['photon_usage'])})"
+        extracted["extraction_summary"] = f"📊 Structured extraction completed: JOIN({join_count}) SCAN({scan_count}) EXCHANGE({exchange_count}) PHOTON({len(extracted['photon_usage'])})"
         
         # 🚨 トークン制限対策: 情報量が多い場合の自動要約
         total_joins_scans = join_count + scan_count
@@ -6368,7 +6368,7 @@ def extract_structured_cost_statistics(explain_cost_content: str) -> Dict[str, A
         }
         
         # 抽出サマリー生成
-        extracted["extraction_summary"] = f"💰 統計抽出完了: テーブル({tables_found}) コスト({costs_found}) メモリ({memory_found}) BROADCAST候補({len(broadcast_candidates)})"
+        extracted["extraction_summary"] = f"💰 Statistics extraction completed: Tables({tables_found}) Cost({costs_found}) Memory({memory_found}) BROADCAST candidates({len(broadcast_candidates)})"
         
     except Exception as e:
         extracted["extraction_error"] = str(e)
