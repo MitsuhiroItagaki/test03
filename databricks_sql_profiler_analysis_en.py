@@ -2361,11 +2361,15 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
             # テーブル情報の抽出
             elif key == 'SCAN_IDENTIFIER':
                 table_name = value
+                # スキャンノードからクラスタリング情報を抽出
+                cluster_attributes = extract_cluster_attributes(node)
+                print(f"    📊 Table {table_name} clustering keys: {cluster_attributes}")
+                
                 extracted_data["table_info"][table_name] = {
                     "node_name": node_name,
                     "node_tag": node_tag,
                     "node_id": node.get('id', ''),
-                    "current_clustering_keys": []  # 現在のクラスタリングキーを追加
+                    "current_clustering_keys": cluster_attributes  # 抽出したクラスタリングキーを設定
                 }
 
     # ノードタイプ別の分類と現在のクラスタリングキー情報の関連付け
