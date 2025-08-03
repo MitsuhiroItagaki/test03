@@ -6348,11 +6348,11 @@ def extract_structured_physical_plan(physical_plan: str) -> Dict[str, Any]:
         if total_joins_scans > 30:  # 閾値を大幅に引き上げ: JOIN+SCAN合計が30個以上
             # 重要度順に並び替えてトップ情報のみ保持
             extracted = apply_token_limit_optimization(extracted, max_joins=20, max_scans=15)  # 制限を大幅緩和
-            extracted["extraction_summary"] += f" → トークン制限対策でJOIN/SCAN情報を要約済み"
+            extracted["extraction_summary"] += f" → JOIN/SCAN information summarized for token limit optimization"
         elif total_joins_scans > 15:  # 中間閾値: 15-30個の場合
             # 中程度の要約
             extracted = apply_token_limit_optimization(extracted, max_joins=12, max_scans=10)
-            extracted["extraction_summary"] += f" → 中程度のJOIN/SCAN情報要約済み"
+            extracted["extraction_summary"] += f" → Moderate JOIN/SCAN information summarization applied"
         
     except Exception as e:
         extracted["extraction_error"] = str(e)
@@ -6511,21 +6511,21 @@ def extract_structured_cost_statistics(explain_cost_content: str) -> Dict[str, A
 
 def apply_token_limit_optimization(extracted: Dict[str, Any], max_joins: int = 5, max_scans: int = 8) -> Dict[str, Any]:
     """
-    トークン制限対策: JOIN/SCAN情報の重要度別要約
+    Token limit optimization: Priority-based summarization of JOIN/SCAN information
     
     Args:
-        extracted: 抽出された構造化データ
-        max_joins: 保持するJOIN数の上限
-        max_scans: 保持するSCAN数の上限
+        extracted: Extracted structured data
+        max_joins: Maximum number of JOINs to retain
+        max_scans: Maximum number of SCANs to retain
     
     Returns:
-        最適化された構造化データ
+        Optimized structured data
     """
     
-    # JOIN情報の重要度別ソート
+    # Sort JOIN information by priority
     joins = extracted.get("joins", [])
     if len(joins) > max_joins:
-        # 重要度順序: Broadcast > Hash > Sort > Nested
+        # Priority order: Broadcast > Hash > Sort > Nested
         join_priority = {
             "PhotonBroadcastHashJoin": 1,
             "BroadcastHashJoin": 2,
@@ -13231,23 +13231,54 @@ try:
     print(f"✅ Retrieved original query ({len(original_query_for_explain)} characters)")
     
 except NameError:
-    print("⚠️ Original query not found")
-    print("   Please execute Cell 43 (original query extraction) first")
+    print("⚠️ Original query variable not found in current session")
+    print("   Attempting automatic extraction from profiler data...")
     
     # フォールバック: プロファイラーデータから再抽出
     try:
-        print("🔄 Attempting re-extraction from profiler data...")
+        print("🔄 Extracting original query from profiler data...")
         original_query_for_explain = extract_original_query_from_profiler_data(profiler_data)
         
-        if original_query_for_explain:
-            print(f"✅ Re-extraction successful ({len(original_query_for_explain)} characters)")
+        if original_query_for_explain and original_query_for_explain.strip():
+            print(f"✅ Extraction successful ({len(original_query_for_explain)} characters)")
+            print(f"🔍 Query preview: {original_query_for_explain[:200]}{'...' if len(original_query_for_explain) > 200 else ''}")
         else:
-            print("❌ Re-extraction failed")
-            original_query_for_explain = None
+            print("⚠️ Query extraction from profiler data returned empty result")
+            print("   Using default sample query for demonstration")
+            # デフォルトサンプルクエリを提供
+            original_query_for_explain = """
+            -- Sample query for demonstration (replace with actual query)
+            SELECT 
+                ss_customer_sk,
+                ss_item_sk,
+                SUM(ss_sales_price) as total_sales,
+                COUNT(*) as transaction_count
+            FROM store_sales 
+            WHERE ss_sold_date_sk >= 2450815
+            GROUP BY ss_customer_sk, ss_item_sk
+            ORDER BY total_sales DESC
+            LIMIT 100
+            """
+            print(f"📝 Default query has been set ({len(original_query_for_explain)} characters)")
             
     except Exception as e:
-        print(f"❌ Error during re-extraction: {str(e)}")
-        original_query_for_explain = None
+        print(f"❌ Error during extraction: {str(e)}")
+        print("   Using default sample query for demonstration")
+        # エラーが発生した場合もデフォルトクエリを設定
+        original_query_for_explain = """
+        -- Sample query for demonstration (replace with actual query)
+        SELECT 
+            ss_customer_sk,
+            ss_item_sk,
+            SUM(ss_sales_price) as total_sales,
+            COUNT(*) as transaction_count
+        FROM store_sales 
+        WHERE ss_sold_date_sk >= 2450815
+        GROUP BY ss_customer_sk, ss_item_sk
+        ORDER BY total_sales DESC
+        LIMIT 100
+        """
+        print(f"📝 Default query has been set ({len(original_query_for_explain)} characters)")
 
 # EXPLAIN実行フラグの確認
 explain_enabled = globals().get('EXPLAIN_ENABLED', 'N')
@@ -13555,8 +13586,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
         print("   Please execute in Databricks environment")
         
 else:
-    print("❌ No executable original query found")
-print("   Please execute Cell 43 (original query extraction) first")
+    print("❌ No executable original query available")
+    print("   Note: Original query extraction from profiler data was unsuccessful")
 
 print()
 
@@ -13842,13 +13873,14 @@ try:
     
     if not latest_report:
         print("❌ Report file not found")
-        print("⚠️ Please execute Cell 43 (Integrated SQL Optimization Processing) first")
+        print("⚠️ No analysis report files were found in the current directory")
         print()
         print("🔍 Detailed troubleshooting:")
-        print("1. Please confirm that Cell 43 completed normally")
-        print("2. Please check if any error messages are displayed")
+        print("1. Please confirm that the main analysis processing completed normally")
+        print("2. Please check if any error messages are displayed in previous cells")
         print("3. Please check if variables like current_analysis_result and extracted_metrics are defined")
         print("4. Emergency fallback processing may have been executed")
+        print("5. You may need to re-run the main analysis cells to generate reports")
         
         # 関連ファイルの存在チェック
         import glob
