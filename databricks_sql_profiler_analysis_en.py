@@ -11583,10 +11583,16 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         # LLMエラーチェック
         if isinstance(optimized_query, str) and optimized_query.startswith("LLM_ERROR:"):
             print(f"❌ LLM error occurred in optimization attempt {attempt_num}")
+            
+            # 🐛 DEBUG: LLMエラーの場合もデバッグファイルとして保存
+            error_message = optimized_query[10:]  # Remove "LLM_ERROR:" prefix
+            save_debug_query_trial(f"-- LLM Error occurred\n-- Error: {error_message}\n-- Original query used as fallback\n\n{original_query}", 
+                                 attempt_num, "llm_error", error_info=error_message[:100])
+            
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'llm_error',
-                'error': optimized_query[10:],
+                'error': error_message,
                 'optimized_query': None
             })
             continue
@@ -11605,10 +11611,16 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         
         if explain_result['final_status'] != 'success':
             print(f"⚠️ Attempt {attempt_num}: EXPLAIN execution failed")
+            
+            # 🐛 DEBUG: EXPLAIN失敗の場合もデバッグファイルとして保存
+            error_details = explain_result.get('error_details', 'Unknown error')
+            save_debug_query_trial(f"-- EXPLAIN execution failed\n-- Error: {error_details}\n-- Generated query below:\n\n{current_query}", 
+                                 attempt_num, "explain_failed", error_info=error_details[:100])
+            
             optimization_attempts.append({
                 'attempt': attempt_num,
                 'status': 'explain_failed',
-                'error': explain_result.get('error_details', 'Unknown error'),
+                'error': error_details,
                 'optimized_query': current_query
             })
             continue
@@ -11915,6 +11927,11 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 degradation_analysis = analyze_degradation_causes(performance_comparison, original_cost_content, optimized_cost_content)
                 
                 print(f"   Details: {', '.join(performance_comparison.get('details', []))}")
+                
+                # 🐛 DEBUG: 成功した最適化クエリも保存（パフォーマンス結果付き）
+                performance_summary = f"Cost ratio: {current_cost_ratio:.3f}, Memory ratio: {current_memory_ratio:.3f}, Status: {status_reason}"
+                save_debug_query_trial(current_query, attempt_num, status_reason.replace('_', '-'), 
+                                     error_info=performance_summary)
                 
                 optimization_attempts.append({
                     'attempt': attempt_num,
