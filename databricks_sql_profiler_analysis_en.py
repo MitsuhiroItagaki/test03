@@ -2741,7 +2741,8 @@ You are a Databricks Liquid Clustering expert. Please analyze the following SQL 
 ```sql
 -- 🚨 注意: 10GB未満のテーブルの場合は以下を出力
 -- ❌ Liquid Clusteringは効果が薄いため推奨しません
--- 💡 代替策: CREATE INDEX ON [テーブル名] ([頻繁に使用されるカラム]);
+-- 💡 代替策: CACHE TABLE [テーブル名]; -- メモリキャッシュで高速アクセス
+-- 💡 または: OPTIMIZE [テーブル名]; -- 小ファイル統合でスキャン効率向上
 
 -- 10GB以上のテーブルの場合のみ以下を出力  
 ALTER TABLE [テーブル名] 
