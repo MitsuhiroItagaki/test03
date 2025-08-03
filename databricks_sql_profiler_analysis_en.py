@@ -65,7 +65,7 @@
 # Notebook environment file path configuration (please select from the following options)
 
 # Option 1: Pre-tuning plan file (recommended)
-JSON_FILE_PATH = '/Workspace/Shared/AutoSQLTuning/Query2.json'
+JSON_FILE_PATH = 'query-profile_01f0703c-c975-1f48-ad71-ba572cc57272.json'
 
 # Option 2: To use other JSON files, uncomment and edit the following
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/nophoton.json'
@@ -2221,13 +2221,55 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
 
     # すべてのグラフからノードを収集
     all_nodes = []
+    table_size_info = {}  # テーブル名 -> サイズ情報のマッピング
+    
     for graph_index, graph in enumerate(graphs):
         nodes = graph.get('nodes', [])
         for node in nodes:
             node['graph_index'] = graph_index
             all_nodes.append(node)
+            
+            # スキャンノードからテーブルサイズを抽出
+            node_name = node.get('name', '')
+            if 'Scan' in node_name:
+                # テーブル名の抽出
+                table_name = node_name.replace('Scan ', '').strip()
+                
+                # Size of files readメトリクスの抽出
+                metrics = node.get('metrics', [])
+                files_read_bytes = 0
+                files_pruned_bytes = 0
+                io_read_bytes = 0
+                
+                for metric in metrics:
+                    label = metric.get('label', '')
+                    value = metric.get('value', 0)
+                    
+                    if 'Size of files read' in label:
+                        files_read_bytes = value
+                    elif 'Size of files pruned' in label:
+                        files_pruned_bytes = value
+                    elif 'Size of data read with io requests' in label:
+                        io_read_bytes = value
+                
+                # テーブルサイズ情報を保存（最大値を記録）
+                if table_name not in table_size_info or files_read_bytes > table_size_info[table_name]['files_read_bytes']:
+                    table_size_info[table_name] = {
+                        'files_read_bytes': files_read_bytes,
+                        'files_read_gb': files_read_bytes / (1024**3),
+                        'files_pruned_bytes': files_pruned_bytes,
+                        'files_pruned_gb': files_pruned_bytes / (1024**3),
+                        'io_read_bytes': io_read_bytes,
+                        'io_read_gb': io_read_bytes / (1024**3),
+                        'total_scan_gb': (files_read_bytes + files_pruned_bytes) / (1024**3)
+                    }
     
     print(f"🔍 Processing {len(all_nodes)} nodes from {len(graphs)} graphs")
+    print(f"📊 Extracted table sizes from {len(table_size_info)} tables:")
+    
+    # テーブルサイズ情報をログ出力
+    for table_name, size_info in table_size_info.items():
+        print(f"  - {table_name}: {size_info['files_read_gb']:.2f} GB (files read)")
 
     # ノードからメタデータ情報を抽出
     for node in all_nodes:
@@ -2408,6 +2450,33 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
     if not clustering_info_found:
         print(f"ℹ️ No current clustering keys detected")
     
+    # 🚨 重要: 抽出したテーブルサイズ情報をtable_infoに統合
+    for table_name, size_info in table_size_info.items():
+        if table_name not in extracted_data["table_info"]:
+            extracted_data["table_info"][table_name] = {
+                "node_name": f"Scan {table_name}",
+                "node_tag": "SCAN",
+                "node_id": f"scan_{table_name.replace('.', '_')}",
+                "current_clustering_keys": [],  # TODO: 実際のクラスタリングキーを抽出
+                "filter_info": {}
+            }
+        
+        # テーブルサイズ情報を追加
+        extracted_data["table_info"][table_name].update({
+            "table_size_gb": size_info['files_read_gb'],
+            "files_read_bytes": size_info['files_read_bytes'],
+            "files_pruned_bytes": size_info['files_pruned_bytes'],
+            "io_read_bytes": size_info['io_read_bytes'],
+            "total_scan_gb": size_info['total_scan_gb'],
+            "size_classification": (
+                "large" if size_info['files_read_gb'] >= 50 else
+                "medium" if size_info['files_read_gb'] >= 10 else
+                "small"
+            )
+        })
+    
+    print(f"✅ Table size integration completed: {len(table_size_info)} tables")
+    
     return extracted_data
 
 def analyze_liquid_clustering_opportunities(profiler_data: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -2467,7 +2536,19 @@ def analyze_liquid_clustering_opportunities(profiler_data: Dict[str, Any], metri
         else:
             filter_str = ", filter rate: no information"
         
-        table_summary.append(f"  - {table_name} (node: {table_info['node_name']}, current clustering key: {current_keys_str}{filter_str})")
+        # 🚨 重要: 実際のテーブルサイズ情報を使用して推奨判定
+        table_size_gb = table_info.get('table_size_gb', 0)
+        size_classification = table_info.get('size_classification', 'unknown')
+        
+        # テーブルサイズによる推奨判定
+        recommendation_status = (
+            "❌推奨しない(小規模)" if size_classification == "small" else
+            "⚠️条件付き推奨(中規模)" if size_classification == "medium" else
+            "✅強く推奨(大規模)" if size_classification == "large" else
+            "⚠️要確認"
+        )
+        
+        table_summary.append(f"  - {table_name} ({recommendation_status}, サイズ: {table_size_gb:.2f}GB, node: {table_info['node_name']}, current clustering key: {current_keys_str}{filter_str})")
     
     # スキャンノードのパフォーマンス情報
     scan_performance = []
@@ -2540,6 +2621,25 @@ You are a Databricks Liquid Clustering expert. Please analyze the following SQL 
 - 最大4カラムまでの推奨
 - データスキューや並列度の問題も考慮
 
+【🚨 テーブルサイズベースの推奨判定基準】
+❌ 推奨しない（効果薄）: 10GB未満のテーブル
+  - 小規模テーブル（date_dim, itemなど）は除外
+  - 理由: ファイル数が少なく、クラスタリング効果が限定的
+  - 代替策: 適切なインデックスやメモリキャッシュを活用
+
+⚠️ 条件付き推奨: 10-50GBのテーブル  
+  - 中規模テーブルで、頻繁なフィルタリング条件がある場合のみ推奨
+  - フィルタ率やアクセスパターンを考慮して判定
+
+✅ 強く推奨: 50GB以上のテーブル
+  - 大規模テーブル（store_sales: 159GB, catalog_sales: 121GB等）
+  - 理由: 大量のファイルでプルーニング効果が大きい
+  
+【テーブル別推奨優先度】
+1. 大規模テーブル（50GB+）: 最優先でLiquid Clustering適用
+2. 中規模テーブル（10-50GB）: フィルタ頻度と使用パターンに基づき判定  
+3. 小規模テーブル（10GB未満）: ❌ Liquid Clusteringは推奨しない
+
 【🚨 Important Understanding of Liquid Clustering Specifications】
 - **Column Order**: In Liquid Clustering, changing the order of clustering keys does not affect "node-level data locality"
 - **Actual Improvement Effects**: Improvements are in "scan efficiency", "file pruning effects", and "query performance"
@@ -2560,17 +2660,24 @@ You are a Databricks Liquid Clustering expert. Please analyze the following SQL 
 
 ## テーブル別推奨クラスタリング
 
-### 1. [テーブル名] テーブル (最優先/高優先度/中優先度)
+### 1. [テーブル名] テーブル (最優先/高優先度/中優先度/❌推奨しない)
+**テーブルサイズ**: [推定サイズ]GB
 **現在のクラスタリングキー**: [現在設定されているキー または "設定なし"]
-**推奨クラスタリングカラム**: [推奨カラム1], [推奨カラム2], [推奨カラム3], [推奨カラム4]
+**推奨クラスタリングカラム**: [推奨カラム1], [推奨カラム2], [推奨カラム3], [推奨カラム4] または ❌ サイズが小さいため推奨しない
 
 ```sql
+-- 🚨 注意: 10GB未満のテーブルの場合は以下を出力
+-- ❌ Liquid Clusteringは効果が薄いため推奨しません
+-- 💡 代替策: CREATE INDEX ON [テーブル名] ([頻繁に使用されるカラム]);
+
+-- 10GB以上のテーブルの場合のみ以下を出力  
 ALTER TABLE [テーブル名] 
 CLUSTER BY ([推奨カラム1], [推奨カラム2], [推奨カラム3], [推奨カラム4]);
 OPTIMIZE [テーブル名] FULL;
 ```
 
 **選定根拠**:
+- **テーブルサイズ判定**: [サイズ]GB → [推奨する/推奨しない]理由
 - [カラム1]: [使用パターンと重要度]
 - [カラム2]: [使用パターンと重要度]
 - [以下同様...]
@@ -2578,7 +2685,7 @@ OPTIMIZE [テーブル名] FULL;
 - ✅改善効果: スキャン効率とファイルプルーニング効果の向上（順序無関係）
 
 **期待される改善効果**:
-- [具体的な数値での改善見込み]
+- [具体的な数値での改善見込み] または ❌ 小規模テーブルのため効果薄い
 
 **フィルタ率**: [X.X]% (読み込み: [XX.XX]GB, プルーン: [XX.XX]GB)
 
