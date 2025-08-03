@@ -2098,6 +2098,22 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
     """
     Extract data required for Liquid Clustering analysis from SQL profiler data (for LLM analysis)
     """
+    # metrics パラメータの型チェック（防御的プログラミング）
+    if not isinstance(metrics, dict):
+        print(f"⚠️ Error: metrics parameter is not a dictionary (type: {type(metrics)})")
+        print(f"   Expected: dict, Received: {type(metrics)}")
+        return {
+            "filter_columns": [],
+            "join_columns": [],
+            "groupby_columns": [],
+            "aggregate_columns": [],
+            "table_info": {},
+            "scan_nodes": [],
+            "join_nodes": [],
+            "filter_nodes": [],
+            "metadata_summary": {"error": f"Invalid metrics type: {type(metrics)}"}
+        }
+    
     extracted_data = {
         "filter_columns": [],
         "join_columns": [],
@@ -2125,6 +2141,7 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
         # メトリクス重視のアプローチでボトルネック分析を行う
         
         # 全体的なフィルタ率情報を計算
+        overall_metrics = metrics.get('overall_metrics', {})
         overall_filter_rate = calculate_filter_rate_percentage(overall_metrics, metrics)
         read_bytes = overall_metrics.get('read_bytes', 0)
         read_gb = read_bytes / (1024**3) if read_bytes > 0 else 0
@@ -2331,7 +2348,12 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
                 }
 
     # ノードタイプ別の分類と現在のクラスタリングキー情報の関連付け
-    node_metrics = metrics.get('node_metrics', [])
+    # メトリクスが辞書でない場合はnode_metricsを空リストとして処理
+    if isinstance(metrics, dict):
+        node_metrics = metrics.get('node_metrics', [])
+    else:
+        print(f"⚠️ Warning: metrics is not a dictionary (type: {type(metrics)}), using empty node_metrics")
+        node_metrics = []
     for node in node_metrics:
         node_name = node.get('name', '')
         node_type = node.get('tag', '')
