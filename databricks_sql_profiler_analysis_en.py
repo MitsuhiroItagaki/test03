@@ -8726,7 +8726,7 @@ def translate_analysis_to_japanese(english_text: str) -> str:
         print(f"⚠️ Translation error: {str(e)}, using original English text")
         return english_text
 
-def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None) -> str:
+def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None) -> str:
     """
     包括的な最適化レポートを生成
     EXPLAIN + EXPLAIN COST実行フラグがYの場合は、統計情報も含める
@@ -9058,11 +9058,39 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
         # 🎯 最適化方針要約を生成
         optimization_strategy = generate_optimization_strategy_summary(optimized_result, metrics, analysis_result_str)
         
+        # 📊 最適化プロセス詳細の生成
+        optimization_process_details = ""
+        if optimization_attempts is not None and best_attempt_number is not None:
+            total_attempts = len(optimization_attempts)
+            cost_improvement = "N/A"
+            memory_improvement = "N/A"
+            selection_reason = "コスト効率が最も良い試行を選択"
+            
+            if performance_comparison:
+                cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
+                memory_ratio = performance_comparison.get('memory_usage_ratio', 1.0)
+                cost_improvement = f"{(1-cost_ratio)*100:.1f}"
+                memory_improvement = f"{(1-memory_ratio)*100:.1f}"
+            
+            optimization_process_details = f"""### 🎯 最適化プロセス詳細
+最適化プロセスで実行された試行とその選択理由を以下に示します：
+
+**📊 最適化試行履歴:**
+- 試行回数: {total_attempts}回実行
+- 最終選択: 試行{best_attempt_number}番が最適解として選択
+- 選択理由: {selection_reason}
+
+**🏆 選択された最適化の効果:**
+- コスト削減率: {cost_improvement}% (EXPLAIN COST比較)
+- メモリ効率改善: {memory_improvement}% (統計比較)
+
+"""
+        
         report += f"""
 
 ## 🚀 4. SQL最適化分析結果
 
-### 🎯 最適化実行方針
+{optimization_process_details}### 🎯 最適化実行方針
 
 {optimization_strategy}
 
@@ -9262,6 +9290,34 @@ The following topics are analyzed for process evaluation:
         # 🎯 最適化方針要約を生成（英語版）
         optimization_strategy = generate_optimization_strategy_summary(optimized_result, metrics, analysis_result_str)
         
+        # 📊 最適化プロセス詳細の生成（英語版）
+        optimization_process_details_en = ""
+        if optimization_attempts is not None and best_attempt_number is not None:
+            total_attempts = len(optimization_attempts)
+            cost_improvement = "N/A"
+            memory_improvement = "N/A"
+            selection_reason = "Selected the trial with the best cost efficiency"
+            
+            if performance_comparison:
+                cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
+                memory_ratio = performance_comparison.get('memory_usage_ratio', 1.0)
+                cost_improvement = f"{(1-cost_ratio)*100:.1f}"
+                memory_improvement = f"{(1-memory_ratio)*100:.1f}"
+            
+            optimization_process_details_en = f"""### 🎯 Optimization Process Details
+The following shows the trials executed during the optimization process and the selection rationale:
+
+**📊 Optimization Trial History:**
+- Trial count: {total_attempts} attempts executed
+- Final selection: Trial {best_attempt_number} was chosen as the optimal solution
+- Selection reason: {selection_reason}
+
+**🏆 Selected Optimization Effects:**
+- Cost reduction rate: {cost_improvement}% (EXPLAIN COST comparison)
+- Memory efficiency improvement: {memory_improvement}% (statistics comparison)
+
+"""
+        
         # 日本語から英語への翻訳マッピング
         translation_map = {
             "🔍 検出された主要課題": "🔍 Key Issues Identified",
@@ -9361,7 +9417,7 @@ Please check:
         report += f"""
 ## 🚀 4. SQL Optimization Analysis Results
 
-### 🎯 Optimization Strategy
+{optimization_process_details_en}### 🎯 Optimization Strategy
 
 {optimization_strategy_en}
 
@@ -9494,6 +9550,18 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 
 ## 🚀 4. 最適化されたSQLクエリ
 
+### 🎯 最適化プロセス詳細
+最適化プロセスで実行された試行とその選択理由を以下に示します：
+
+**📊 最適化試行履歴:**
+- 試行回数: [total_attempts]回実行
+- 最終選択: 試行[selected_attempt_num]番が最適解として選択
+- 選択理由: [selection_reason]
+
+**🏆 選択された最適化の効果:**
+- コスト削減率: [cost_improvement]% (EXPLAIN COST比較)
+- メモリ効率改善: [memory_improvement]% (統計比較)
+
 ### 💡 具体的な最適化内容とコスト効果
 最適化されたSQLクエリの前に、以下の情報を必ず含めてください：
 
@@ -9586,6 +9654,18 @@ Query execution time is [X.X] seconds, which is [evaluation], but the following 
 ### 📋 Recommended Table Analysis
 
 ## 🚀 4. Optimized SQL Query
+
+### 🎯 Optimization Process Details
+The following shows the trials executed during the optimization process and the selection rationale:
+
+**📊 Optimization Trial History:**
+- Trial count: [total_attempts] attempts executed
+- Final selection: Trial [selected_attempt_num] was chosen as the optimal solution
+- Selection reason: [selection_reason]
+
+**🏆 Selected Optimization Effects:**
+- Cost reduction rate: [cost_improvement]% (EXPLAIN COST comparison)
+- Memory efficiency improvement: [memory_improvement]% (statistics comparison)
 
 ### 💡 Specific Optimization Details and Cost Effects
 Before the optimized SQL query, must include the following information:
@@ -10341,7 +10421,7 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     
     return True
 
-def save_optimized_sql_files(original_query: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", llm_response: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None) -> Dict[str, str]:
+def save_optimized_sql_files(original_query: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", llm_response: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None) -> Dict[str, str]:
     """
     最適化されたSQLクエリを実行可能な形でファイルに保存
     
@@ -11218,6 +11298,38 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
     try:
         import re
         
+        # 🚨 EXPLAIN COST内容の妥当性チェック
+        def validate_explain_cost_content(explain_cost_text, query_type):
+            """EXPLAIN COST内容が正常かチェック"""
+            if len(explain_cost_text) < 1000:
+                return False, f"{query_type} EXPLAIN COST content too short ({len(explain_cost_text)} chars)"
+            
+            if 'ExplainCommand' in explain_cost_text:
+                return False, f"{query_type} EXPLAIN COST contains ExplainCommand (invalid result)"
+            
+            if '== Optimized Logical Plan ==' not in explain_cost_text:
+                return False, f"{query_type} EXPLAIN COST missing expected structure"
+                
+            return True, "Valid"
+        
+        # 元クエリとの最適化クエリのEXPLAIN COST妥当性チェック
+        original_valid, original_error = validate_explain_cost_content(original_explain_cost, "Original")
+        optimized_valid, optimized_error = validate_explain_cost_content(optimized_explain_cost, "Optimized")
+        
+        if not original_valid:
+            comparison_result['performance_degradation_detected'] = True
+            comparison_result['is_optimization_beneficial'] = False
+            comparison_result['recommendation'] = 'use_original'
+            comparison_result['details'] = [f"❌ {original_error}"]
+            return comparison_result
+            
+        if not optimized_valid:
+            comparison_result['performance_degradation_detected'] = True
+            comparison_result['is_optimization_beneficial'] = False
+            comparison_result['recommendation'] = 'use_original'
+            comparison_result['details'] = [f"❌ {optimized_error} - reverting to original query"]
+            return comparison_result
+        
         # コスト情報を抽出する関数
         def extract_cost_metrics(explain_cost_text):
             metrics = {
@@ -12052,11 +12164,35 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
     print("🏆 Selecting best result as final query")
     print("=" * 60)
     
+    # 📊 最適化試行結果サマリー表示
+    print(f"\n📊 Optimization attempt details: {len(optimization_attempts)} times")
+    for i, attempt in enumerate(optimization_attempts, 1):
+        status_symbol = {
+            'llm_error': '❌',
+            'explain_failed': '🚫', 
+            'insufficient_improvement': '❓',
+            'substantial_success': '🏆',
+            'performance_degraded': '⬇️',
+            'comparison_error': '💥'
+        }.get(attempt['status'], '❓')
+        
+        status_details = ""
+        if 'cost_ratio' in attempt:
+            cost_ratio = attempt['cost_ratio']
+            status_details = f"💰 Cost ratio: {cost_ratio:.2f}x"
+        
+        print(f"   {status_symbol} Attempt {i}: {attempt['status']}")
+        if status_details:
+            print(f"      {status_details}")
+    
+    print("=" * 60)
+    
     # ベスト結果の詳細表示
     if best_result['attempt_num'] > 0:
-        print(f"🥇 Selected best result: Attempt {best_result['attempt_num']}")
+        print(f"🥇 FINAL SELECTION: Attempt {best_result['attempt_num']} has been chosen as the optimized query")
         print(f"   📊 Cost ratio: {best_result['cost_ratio']:.3f} (Improvement: {(1-best_result['cost_ratio'])*100:.1f}%)")
         print(f"   💾 Memory ratio: {best_result['memory_ratio']:.3f} (Improvement: {(1-best_result['memory_ratio'])*100:.1f}%)")
+        print(f"   🎯 Selection reason: Best cost performance among all attempts")
         
         final_query = best_result['query']
         final_optimized_result = best_result['optimized_result']
@@ -12064,7 +12200,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         final_status = 'optimization_success'
         achievement_type = 'best_of_trials'
         
-        print(f"✅ Adopting best result as optimized query")
+        print(f"✅ CONFIRMED: Using Attempt {best_result['attempt_num']} optimized query for final report")
         
     else:
         print(f"⚠️ Using original query due to errors or evaluation failures in all attempts")
@@ -13072,6 +13208,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 # File saving: final_query (successful query) to SQL file, optimized_result (original LLM response) to report
                 performance_comparison = retry_result.get('performance_comparison')
                 best_attempt_number = retry_result.get('best_result', {}).get('attempt_num')  # 🎯 ベスト試行番号を取得
+                optimization_attempts = retry_result.get('optimization_attempts', [])  # 🎯 最適化試行詳細を取得
                 saved_files = save_optimized_sql_files(
                     original_query_for_explain,
                     final_query,  # 🚀 成功したクエリ（ヒント付き）を保存
@@ -13079,7 +13216,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     analysis_result_str,
                     optimized_result,  # 📊 元のLLMレスポンス（レポート用）
                     performance_comparison,  # 🔍 パフォーマンス比較結果
-                    best_attempt_number  # 🎯 ベスト試行番号（レポート用）
+                    best_attempt_number,  # 🎯 ベスト試行番号（レポート用）
+                    optimization_attempts  # 🎯 最適化試行詳細（レポート用）
                 )
                 
                 print("\n📁 Optimization files:")
@@ -13106,6 +13244,28 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 print("   - Consider updating table statistics")
                 print("   - Consider manual optimization with more detailed EXPLAIN information")
                 print("   - Please check data volume and query complexity")
+                
+                # 🚀 失敗時でもレポート生成を実行（ユーザー要求による追加）
+                print("\n🤖 Generating final report even though optimization failed...")
+                fallback_query = retry_result.get('final_query', original_query_for_explain)
+                fallback_result = retry_result.get('optimized_result', 'Optimization failed')
+                optimization_attempts = retry_result.get('optimization_attempts', [])
+                best_attempt_number = retry_result.get('best_result', {}).get('attempt_num', 1)
+                
+                saved_files = save_optimized_sql_files(
+                    original_query_for_explain,
+                    fallback_query,  # 元のクエリまたは最後に成功したクエリ
+                    current_metrics,
+                    analysis_result_str,
+                    fallback_result,  # 失敗情報を含むレポート
+                    None,  # パフォーマンス比較は失敗
+                    best_attempt_number,  # 最適化試行番号
+                    optimization_attempts  # 最適化試行詳細
+                )
+                
+                print("\n📁 Generated files (failure case):")
+                for file_type, filename in saved_files.items():
+                    print(f"   📄 {file_type}: {filename}")
             
             elif retry_result['final_status'] == 'fallback_to_original':
                 print("⚠️ Using original query due to persistent errors in optimized query")
