@@ -2554,9 +2554,23 @@ def analyze_liquid_clustering_opportunities(profiler_data: Dict[str, Any], metri
     for i, item in enumerate(extracted_data["aggregate_columns"][:5]):
         aggregate_summary.append(f"  {i+1}. {item['expression']} (node: {item['node_name']})")
     
+    # テーブル情報の重複エントリを統合（フルテーブル名を優先）
+    consolidated_table_info = {}
+    for table_name, table_info in extracted_data["table_info"].items():
+        # フルテーブル名（ドット区切り）を優先
+        if '.' in table_name:
+            # フルテーブル名の場合、そのまま使用
+            consolidated_table_info[table_name] = table_info
+        else:
+            # 短縮テーブル名の場合、フルテーブル名が存在しないときのみ追加
+            full_table_exists = any(full_name.endswith('.' + table_name) 
+                                  for full_name in consolidated_table_info.keys())
+            if not full_table_exists:
+                consolidated_table_info[table_name] = table_info
+    
     # テーブル情報のサマリー（現在のクラスタリングキー情報とフィルタ率を含む）
     table_summary = []
-    for table_name, table_info in extracted_data["table_info"].items():
+    for table_name, table_info in consolidated_table_info.items():
         current_keys = table_info.get('current_clustering_keys', [])
         current_keys_str = ', '.join(current_keys) if current_keys else 'Not configured'
         
