@@ -1081,26 +1081,37 @@ def extract_cluster_attributes(node: Dict[str, Any]) -> list:
         list: Detected clustering keys
     """
     cluster_attributes = []
+    node_name = node.get('name', 'Unknown')
+    
+    print(f"    🔍 Debug extract_cluster_attributes for: {node_name}")
     
     # Search for SCAN_CLUSTERS from metadata
     metadata = node.get('metadata', [])
+    print(f"      - metadata type: {type(metadata)}, length: {len(metadata) if isinstance(metadata, list) else 'N/A'}")
+    
     if isinstance(metadata, list):
-        for item in metadata:
+        for i, item in enumerate(metadata):
             if isinstance(item, dict):
                 item_key = item.get('key', '')
                 item_label = item.get('label', '')
                 item_values = item.get('values', [])
                 
+                print(f"        metadata[{i}]: key='{item_key}', label='{item_label}', values={item_values}")
+                
                 # Check both key and label
                 if (item_key == 'SCAN_CLUSTERS' or 
                     item_label == 'Cluster attributes'):
+                    print(f"        *** FOUND SCAN_CLUSTERS in metadata: {item_values}")
                     if isinstance(item_values, list):
                         cluster_attributes.extend(item_values)
     
     # Search from raw_metrics as well (also check label)
     raw_metrics = node.get('metrics', [])
+    print(f"      - metrics type: {type(raw_metrics)}, length: {len(raw_metrics) if isinstance(raw_metrics, list) else 'N/A'}")
+    
     if isinstance(raw_metrics, list):
-        for metric in raw_metrics:
+        scan_clusters_found = False
+        for i, metric in enumerate(raw_metrics):
             if isinstance(metric, dict):
                 metric_key = metric.get('key', '')
                 metric_label = metric.get('label', '')
@@ -1108,21 +1119,31 @@ def extract_cluster_attributes(node: Dict[str, Any]) -> list:
                 
                 if (metric_key == 'SCAN_CLUSTERS' or 
                     metric_label == 'Cluster attributes'):
+                    print(f"        *** FOUND SCAN_CLUSTERS in metrics[{i}]: key='{metric_key}', label='{metric_label}', values={metric_values}")
+                    scan_clusters_found = True
                     if isinstance(metric_values, list):
                         cluster_attributes.extend(metric_values)
+        
+        if not scan_clusters_found:
+            print(f"        No SCAN_CLUSTERS found in {len(raw_metrics)} metrics")
     
     # Search from detailed_metrics as well
     detailed_metrics = node.get('detailed_metrics', {})
+    print(f"      - detailed_metrics type: {type(detailed_metrics)}")
+    
     if isinstance(detailed_metrics, dict):
         for key, info in detailed_metrics.items():
             if (key == 'SCAN_CLUSTERS' or 
                 (isinstance(info, dict) and info.get('label') == 'Cluster attributes')):
+                print(f"        *** FOUND SCAN_CLUSTERS in detailed_metrics: {key}")
                 values = info.get('values', []) if isinstance(info, dict) else []
                 if isinstance(values, list):
                     cluster_attributes.extend(values)
     
     # Remove duplicates
-    return list(set(cluster_attributes))
+    final_result = list(set(cluster_attributes))
+    print(f"      → Final clustering keys: {final_result}")
+    return final_result
 
 def extract_parallelism_metrics(node: Dict[str, Any]) -> Dict[str, Any]:
     """
