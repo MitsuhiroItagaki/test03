@@ -3488,7 +3488,7 @@ def analyze_bottlenecks_with_llm(metrics: Dict[str, Any]) -> str:
                     print(f"📊 Extracted statistics for bottleneck analysis: {len(cost_statistics)} characters")
                         
                 except Exception as e:
-                print(f"⚠️ Failed to load EXPLAIN COST results for bottleneck analysis: {str(e)}")
+                    print(f"⚠️ Failed to load EXPLAIN COST results for bottleneck analysis: {str(e)}")
         
         if not explain_files and not cost_files:
             # フォールバック: 古いファイル名パターンもチェック
