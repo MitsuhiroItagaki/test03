@@ -9175,8 +9175,8 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
     
     # パフォーマンス比較結果の詳細表示
     recommendation = performance_comparison.get('recommendation', 'unknown')
-    total_cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
-    memory_usage_ratio = performance_comparison.get('memory_usage_ratio', 1.0)
+    total_cost_ratio = performance_comparison.get('total_cost_ratio', 1.0) or 1.0
+    memory_usage_ratio = performance_comparison.get('memory_usage_ratio', 1.0) or 1.0
     degradation_detected = performance_comparison.get('performance_degradation_detected', False)
     details = performance_comparison.get('details', [])
     
@@ -11644,7 +11644,7 @@ def generate_improved_query_for_performance_degradation(original_query: str, ana
     
     # 悪化分析の詳細情報を抽出
     primary_cause = degradation_analysis.get('primary_cause', 'unknown')
-    cost_ratio = degradation_analysis.get('analysis_details', {}).get('cost_ratio', 1.0)
+    cost_ratio = degradation_analysis.get('analysis_details', {}).get('cost_ratio', 1.0) or 1.0
     specific_issues = degradation_analysis.get('specific_issues', [])
     fix_instructions = degradation_analysis.get('fix_instructions', [])
     confidence_level = degradation_analysis.get('confidence_level', 'low')
@@ -13277,7 +13277,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         }.get(attempt['status'], '❓')
         
         status_details = ""
-        if 'cost_ratio' in attempt:
+        if 'cost_ratio' in attempt and attempt['cost_ratio'] is not None:
             cost_ratio = attempt['cost_ratio']
             status_details = f"💰 Cost ratio: {cost_ratio:.2f}x"
         
@@ -13456,8 +13456,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                     performance_comparison = compare_query_performance(original_cost_content, optimized_cost_content)
                     
                     print(f"📊 Performance comparison results:")
-                    print(f"   - Execution cost ratio: {performance_comparison['total_cost_ratio']:.2f}x")
-                    print(f"   - Memory usage ratio: {performance_comparison['memory_usage_ratio']:.2f}x")
+                    cost_ratio = performance_comparison.get('total_cost_ratio', 1.0) or 1.0
+                    memory_ratio = performance_comparison.get('memory_usage_ratio', 1.0) or 1.0
+                    print(f"   - Execution cost ratio: {cost_ratio:.2f}x")
+                    print(f"   - Memory usage ratio: {memory_ratio:.2f}x")
                     print(f"   - Recommendation: {performance_comparison['recommendation']}")
                     
                     for detail in performance_comparison['details']:
@@ -13470,7 +13472,7 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                         # 元クエリでのファイル生成（パフォーマンス悪化防止）
                         fallback_result = save_optimized_sql_files(
                             original_query,
-                            f"# 🚨 パフォーマンス悪化検出のため元クエリを使用\n\n## 悪化要因\n{'; '.join(performance_comparison['details'])}\n\n## パフォーマンス比較結果\n- 実行コスト比: {performance_comparison['total_cost_ratio']:.2f}倍\n- メモリ使用比: {performance_comparison['memory_usage_ratio']:.2f}倍\n\n## 元のクエリ（最適化前）\n```sql\n{original_query}\n```",
+                            f"# 🚨 パフォーマンス悪化検出のため元クエリを使用\n\n## 悪化要因\n{'; '.join(performance_comparison['details'])}\n\n## パフォーマンス比較結果\n- 実行コスト比: {cost_ratio:.2f}倍\n- メモリ使用比: {memory_ratio:.2f}倍\n\n## 元のクエリ（最適化前）\n```sql\n{original_query}\n```",
                             metrics,
                             analysis_result,
                             "",  # llm_response
