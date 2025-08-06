@@ -7730,23 +7730,56 @@ FROM table1 cs
             print(f"❌ LLM optimization error: {error_msg}")
             return f"LLM_ERROR: {error_msg}"
         
-        # LLMレスポンスのエラーチェック（重要）
+        # LLMレスポンスのエラーチェック（改善版：分析結果を誤ってエラーとして認識しない）
         if isinstance(optimized_result, str):
-            # APIエラーメッセージの検出
-            error_indicators = [
-                 "APIエラー:",
-                 "Input is too long",
-                 "Bad Request",
-                 "❌",
-                 "⚠️",
-                 "タイムアウトエラー:",
-                 "API呼び出しエラー:",
-                 "レスポンス:",
-                 '{"error_code":'
-             ]
+            # より精密なエラー判定（真のエラーのみを検出）
+            def is_actual_error_response(response_text: str) -> bool:
+                if not response_text:
+                    return False
+                
+                # 真のエラーのみを検出する厳密な指標
+                critical_error_indicators = [
+                    '{"error_code":',
+                    'HTTPError',
+                    'ConnectionError',
+                    'TimeoutError', 
+                    'APIエラー:',
+                    'API呼び出しに失敗',
+                    'タイムアウトが発生',
+                    'リクエストエラー:',
+                    'レスポンスの解析に失敗',
+                    'Input is too long',
+                    'Bad Request'
+                ]
+                
+                # 分析結果の典型的なパターンは除外
+                analysis_patterns = [
+                    '## 🚀 処理速度重視の最適化されたSQL',
+                    '**🎯 実際に適用した最適化手法**',
+                    '**💰 EXPLAIN COSTベースの効果分析**',
+                    'WITH',
+                    'SELECT',
+                    '```sql',
+                    '改善ポイント',
+                    '期待効果',
+                    'クエリ実行コスト削減率',
+                    'メモリ使用量削減率'
+                ]
+                
+                # 分析結果のパターンが含まれている場合はエラーではない
+                for pattern in analysis_patterns:
+                    if pattern in response_text:
+                        return False
+                
+                # 真のエラーインジケーターがある場合のみエラーと判定
+                for indicator in critical_error_indicators:
+                    if indicator in response_text:
+                        return True
+                
+                return False
              
-             # エラーメッセージかどうかをチェック
-            is_error_response = any(indicator in optimized_result for indicator in error_indicators)
+             # エラーメッセージかどうかをチェック（改善版）
+            is_error_response = is_actual_error_response(optimized_result)
             
             if is_error_response:
                 print(f"❌ Error occurred in LLM API call: {optimized_result[:200]}...")
@@ -10970,47 +11003,14 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     # オリジナルクエリファイルの保存は除外（不要）
     original_filename = None
     
-    # 最適化されたクエリの抽出と保存
+    # 最適化されたクエリの抽出と保存（改善版：強化されたSQL抽出を使用）
     optimized_filename = f"output_optimized_query_{timestamp}.sql"
     
-    # 最適化結果からSQLコードを抽出（主要コンテンツから抽出） - 改善版
-    sql_pattern = r'```sql\s*(.*?)\s*```'
-    sql_matches = re.findall(sql_pattern, optimized_result_main_content, re.DOTALL | re.IGNORECASE)
+    # 改善されたSQL抽出関数を使用
+    optimized_sql = extract_sql_from_llm_response(optimized_result_main_content)
     
-    optimized_sql = ""
-    if sql_matches:
-        # 最も長いSQLブロックを使用（完全性を優先）
-        optimized_sql = max(sql_matches, key=len).strip()
-    else:
-        # SQLブロックが見つからない場合は、SQL関連の行を抽出（改善版）
-        lines = optimized_result_main_content.split('\n')
-        sql_lines = []
-        in_sql_section = False
-        
-        for line in lines:
-            line_stripped = line.strip()
-            
-            # SQLの開始を検出
-            if any(keyword in line.upper() for keyword in ['SELECT', 'FROM', 'WHERE', 'WITH', 'CREATE', 'INSERT', 'UPDATE', 'DELETE']):
-                in_sql_section = True
-            
-            if in_sql_section:
-                # SQLの終了を検出（マークダウンセクションやレポートセクション）
-                if (line_stripped.startswith('#') or 
-                    line_stripped.startswith('*') or 
-                    line_stripped.startswith('##') or
-                    line_stripped.startswith('**') or
-                    line_stripped.startswith('---') or
-                    line_stripped.startswith('===') or
-                    '改善ポイント' in line_stripped or
-                    '期待効果' in line_stripped or
-                    'BROADCAST適用根拠' in line_stripped):
-                    in_sql_section = False
-                else:
-                    # 空行や有効なSQL行を追加
-                    sql_lines.append(line)
-        
-        optimized_sql = '\n'.join(sql_lines).strip()
+    # 分析結果の抽出（SQLと分離して保存するため）
+    analysis_content = extract_analysis_content_from_llm_response(optimized_result_main_content)
     
     # SQL構文の基本チェック（完全性確認）
     if optimized_sql:
@@ -11091,11 +11091,34 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     
     print(f"✅ Report file saving completed: {report_filename}")
     
-    # Output file results (independent TOP10 files removed and integrated into optimization report)
+    # 分析結果を別ファイルに保存（新機能）
+    analysis_filename = None
+    if analysis_content and len(analysis_content.strip()) > 100:
+        analysis_filename = f"output_optimization_analysis_{timestamp}.md"
+        try:
+            with open(analysis_filename, 'w', encoding='utf-8') as f:
+                f.write(f"# SQL最適化分析結果\n")
+                f.write(f"## ファイル情報\n")
+                f.write(f"- 生成日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"- 元クエリID: {query_id}\n")
+                f.write(f"- 最適化SQLファイル: {optimized_filename}\n")
+                f.write(f"- 詳細レポート: {report_filename}\n\n")
+                f.write("---\n\n")
+                f.write(analysis_content)
+            
+            print(f"✅ Analysis file saving completed: {analysis_filename}")
+        except Exception as e:
+            print(f"⚠️ Analysis file saving failed: {str(e)}")
+            analysis_filename = None
+    
+    # Output file results (analysis file added to results)
     result = {
         'optimized_file': optimized_filename,
         'report_file': report_filename
     }
+    
+    if analysis_filename:
+        result['analysis_file'] = analysis_filename
     
     return result
 
@@ -13134,21 +13157,24 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
 
 def extract_sql_from_llm_response(llm_response: str) -> str:
     """
-    Extract only SQL query part from LLM response
+    Extract only SQL query part from LLM response (Enhanced version)
+    分析テキストとSQLを正確に分離する改善版
     """
     import re
     
-    # SQLコードブロックを検索（```sql ... ```）
+    if not llm_response or not llm_response.strip():
+        return ""
+    
+    # 1. SQLコードブロックを検索（```sql ... ```）
     sql_pattern = r'```sql\s*(.*?)\s*```'
     matches = re.findall(sql_pattern, llm_response, re.DOTALL | re.IGNORECASE)
     
     if matches:
         # 最長のSQLブロックを選択
         sql_query = max(matches, key=len).strip()
-        return sql_query
+        return clean_extracted_sql(sql_query)
     
-    # SQLコードブロックが見つからない場合、別のパターンを試行
-    # ```のみのコードブロック
+    # 2. 一般的なコードブロックを検索（```のみ）
     code_pattern = r'```\s*(.*?)\s*```'
     matches = re.findall(code_pattern, llm_response, re.DOTALL)
     
@@ -13156,10 +13182,130 @@ def extract_sql_from_llm_response(llm_response: str) -> str:
         match = match.strip()
         # SQLキーワードで始まるかチェック
         if re.match(r'^(SELECT|WITH|CREATE|INSERT|UPDATE|DELETE|EXPLAIN)', match, re.IGNORECASE):
-            return match
+            return clean_extracted_sql(match)
     
-    # パターンマッチしない場合は元のレスポンスをそのまま返す
+    # 3. SQLキーワードで始まる行から分析セクションまでを抽出
+    lines = llm_response.split('\n')
+    sql_lines = []
+    in_sql = False
+    
+    for line in lines:
+        line_stripped = line.strip()
+        
+        # SQL開始の検出（より厳密）
+        if re.match(r'^(WITH|SELECT|FROM|CREATE|INSERT|UPDATE|DELETE)\s', line_stripped, re.IGNORECASE):
+            in_sql = True
+        
+        if in_sql:
+            # 分析セクション開始でSQL終了（厳密な検出）
+            if (line_stripped.startswith('##') or 
+                line_stripped.startswith('**') and ('改善' in line_stripped or '効果' in line_stripped or '根拠' in line_stripped) or
+                '改善ポイント' in line_stripped or 
+                '期待効果' in line_stripped or
+                'JOIN最適化の根拠' in line_stripped or
+                '最適化手法' in line_stripped or
+                'EXPLAIN COSTベースの' in line_stripped):
+                break
+            
+            # 有効なSQL行を追加
+            sql_lines.append(line)
+    
+    if sql_lines:
+        return clean_extracted_sql('\n'.join(sql_lines).strip())
+    
+    # 4. パターンマッチしない場合は元のレスポンスをそのまま返す
     return llm_response.strip()
+
+
+def clean_extracted_sql(sql_content: str) -> str:
+    """
+    抽出されたSQLから不要なテキストを除去
+    """
+    if not sql_content:
+        return ""
+    
+    # 分析テキストの混入を除去
+    lines = sql_content.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        line_stripped = line.strip()
+        
+        # 分析テキストの除去
+        if (line_stripped.startswith('**') or
+            line_stripped.startswith('##') or
+            '改善ポイント' in line_stripped or
+            '期待効果' in line_stripped or
+            '最適化手法' in line_stripped or
+            'EXPLAIN COST' in line_stripped and 'ベース' in line_stripped):
+            break
+        
+        # 空行でない、または意味のある行のみ追加
+        if line_stripped or (cleaned_lines and not cleaned_lines[-1].strip()):
+            cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines).strip()
+
+
+def extract_analysis_content_from_llm_response(llm_response: str) -> str:
+    """
+    LLMレスポンスから分析結果部分を抽出
+    SQLコードと分離して、分析レポート用のコンテンツを取得
+    """
+    import re
+    from datetime import datetime
+    
+    if not llm_response or not llm_response.strip():
+        return ""
+    
+    # SQLコードブロックを除去した残りの部分を抽出
+    lines = llm_response.split('\n')
+    analysis_lines = []
+    in_sql_block = False
+    sql_block_pattern = re.compile(r'```sql', re.IGNORECASE)
+    sql_block_end_pattern = re.compile(r'```')
+    
+    for line in lines:
+        line_stripped = line.strip()
+        
+        # SQLブロックの開始を検出
+        if sql_block_pattern.search(line):
+            in_sql_block = True
+            continue
+        
+        # SQLブロックの終了を検出
+        if in_sql_block and sql_block_end_pattern.search(line):
+            in_sql_block = False
+            continue
+        
+        # SQLブロック内でない場合は分析コンテンツとして追加
+        if not in_sql_block:
+            # SQL文の行も除外（SQLブロック外にあるSQL文）
+            if not re.match(r'^(WITH|SELECT|FROM|WHERE|GROUP BY|ORDER BY|LIMIT|CREATE|INSERT|UPDATE|DELETE)\s', line_stripped, re.IGNORECASE):
+                analysis_lines.append(line)
+    
+    # 分析コンテンツの整理
+    analysis_content = '\n'.join(analysis_lines).strip()
+    
+    # 空の分析コンテンツの場合は基本的な情報を追加
+    if not analysis_content or len(analysis_content) < 100:
+        analysis_content = f"""# SQL最適化分析結果
+
+## 概要
+LLMによるSQL最適化が実行されました。
+
+## 最適化内容
+- 実行パフォーマンスの改善
+- SQLクエリ構造の最適化
+- 効率的なJOIN処理の実装
+
+## 注意事項
+詳細な分析結果は最適化されたSQLファイルをご確認ください。
+
+生成日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+    
+    return analysis_content
 
 
 def execute_explain_and_save_to_file(original_query: str, query_type: str = "original") -> Dict[str, str]:
