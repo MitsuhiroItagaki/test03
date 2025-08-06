@@ -9401,6 +9401,12 @@ def format_trial_history_summary(optimization_attempts: list, language: str = 'j
         cost_ratio = attempt.get('cost_ratio', 1.0)
         memory_ratio = attempt.get('memory_ratio', 1.0)
         
+        # None値のハンドリング
+        if cost_ratio is None:
+            cost_ratio = 1.0
+        if memory_ratio is None:
+            memory_ratio = 1.0
+        
         # ステータス表示
         status_text = status_mapping.get(language, status_mapping['en']).get(status, status)
         
@@ -9794,6 +9800,13 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
             if performance_comparison:
                 cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
                 memory_ratio = performance_comparison.get('memory_usage_ratio', 1.0)
+                
+                # None値のハンドリング
+                if cost_ratio is None:
+                    cost_ratio = 1.0
+                if memory_ratio is None:
+                    memory_ratio = 1.0
+                    
                 cost_improvement = f"{(1-cost_ratio)*100:.1f}"
                 memory_improvement = f"{(1-memory_ratio)*100:.1f}"
             
@@ -10043,6 +10056,13 @@ The following topics are analyzed for process evaluation:
             if performance_comparison:
                 cost_ratio = performance_comparison.get('total_cost_ratio', 1.0)
                 memory_ratio = performance_comparison.get('memory_usage_ratio', 1.0)
+                
+                # None値のハンドリング
+                if cost_ratio is None:
+                    cost_ratio = 1.0
+                if memory_ratio is None:
+                    memory_ratio = 1.0
+                    
                 cost_improvement = f"{(1-cost_ratio)*100:.1f}"
                 memory_improvement = f"{(1-memory_ratio)*100:.1f}"
             
