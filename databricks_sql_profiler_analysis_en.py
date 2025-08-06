@@ -11091,9 +11091,11 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     
     print(f"✅ Report file saving completed: {report_filename}")
     
-    # 分析結果を別ファイルに保存（新機能）
+    # 分析結果を別ファイルに保存（新機能：DEBUG_ENABLED='Y'の場合のみ）
     analysis_filename = None
-    if analysis_content and len(analysis_content.strip()) > 100:
+    debug_enabled = globals().get('DEBUG_ENABLED', 'N')
+    
+    if analysis_content and len(analysis_content.strip()) > 100 and debug_enabled.upper() == 'Y':
         analysis_filename = f"output_optimization_analysis_{timestamp}.md"
         try:
             with open(analysis_filename, 'w', encoding='utf-8') as f:
@@ -11110,6 +11112,8 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
         except Exception as e:
             print(f"⚠️ Analysis file saving failed: {str(e)}")
             analysis_filename = None
+    elif debug_enabled.upper() != 'Y':
+        print(f"🐛 Analysis file saving skipped (DEBUG_ENABLED={debug_enabled})")
     
     # Output file results (analysis file added to results)
     result = {
