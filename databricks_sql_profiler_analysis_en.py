@@ -6890,13 +6890,9 @@ def generate_optimized_query_with_llm(original_query: str, analysis_result: str,
                     physical_plan_raw = explain_content[physical_plan_start:physical_plan_end].strip()
                     print(f"📊 Extracted Physical Plan information: {len(physical_plan_raw)} characters")
                     
-                                    # 🧠 構造化抽出 vs 従来の切り詰めの選択
-                structured_enabled = globals().get('STRUCTURED_EXTRACTION_ENABLED', 'Y')
-                debug_enabled = globals().get('DEBUG_ENABLED', 'N')
-                
-                # 🧠 構造化抽出 vs 従来の切り詰めの選択
-                structured_enabled = globals().get('STRUCTURED_EXTRACTION_ENABLED', 'Y')
-                debug_enabled = globals().get('DEBUG_ENABLED', 'N')
+                    # 🧠 構造化抽出 vs 従来の切り詰めの選択
+                    structured_enabled = globals().get('STRUCTURED_EXTRACTION_ENABLED', 'Y')
+                    debug_enabled = globals().get('DEBUG_ENABLED', 'N')
                 
                 if structured_enabled.upper() == 'Y':
                     # 🚀 構造化抽出アプローチ
@@ -6975,81 +6971,81 @@ def generate_optimized_query_with_llm(original_query: str, analysis_result: str,
                     with open(latest_cost_file, 'r', encoding='utf-8') as f:
                         explain_cost_content = f.read()
                         print(f"💰 Loaded EXPLAIN COST result file: {latest_cost_file}")
-                
-                # Extract statistical information (structured extraction support)
-                structured_enabled = globals().get('STRUCTURED_EXTRACTION_ENABLED', 'Y')
-                
-                if structured_enabled.upper() == 'Y':
-                    # 🚀 構造化抽出アプローチ
-                    try:
-                        structured_cost = extract_structured_cost_statistics(explain_cost_content)
-                        
-                        # Convert structured results to JSON format string
-                        import json
-                        cost_statistics = json.dumps(structured_cost, ensure_ascii=False, indent=2)
-                        
-                        print(f"💰 EXPLAIN COST structured extraction completed: {len(explain_cost_content):,} → {len(cost_statistics):,} characters (compression ratio: {len(explain_cost_content)//len(cost_statistics) if len(cost_statistics) > 0 else 0}x)")
-                        print(f"   {structured_cost.get('extraction_summary', '💰 Statistical extraction completed')}")
-                        
-                    except Exception as extraction_error:
-                        print(f"⚠️ EXPLAIN COST structured extraction failed, falling back to traditional method: {str(extraction_error)}")
-                        # Fallback: Traditional extraction method
+                    
+                    # Extract statistical information (structured extraction support)
+                    structured_enabled = globals().get('STRUCTURED_EXTRACTION_ENABLED', 'Y')
+                    
+                    if structured_enabled.upper() == 'Y':
+                        # 🚀 構造化抽出アプローチ
+                        try:
+                            structured_cost = extract_structured_cost_statistics(explain_cost_content)
+                            
+                            # Convert structured results to JSON format string
+                            import json
+                            cost_statistics = json.dumps(structured_cost, ensure_ascii=False, indent=2)
+                            
+                            print(f"💰 EXPLAIN COST structured extraction completed: {len(explain_cost_content):,} → {len(cost_statistics):,} characters (compression ratio: {len(explain_cost_content)//len(cost_statistics) if len(cost_statistics) > 0 else 0}x)")
+                            print(f"   {structured_cost.get('extraction_summary', '💰 Statistical extraction completed')}")
+                            
+                        except Exception as extraction_error:
+                            print(f"⚠️ EXPLAIN COST structured extraction failed, falling back to traditional method: {str(extraction_error)}")
+                            # Fallback: Traditional extraction method
+                            cost_statistics = extract_cost_statistics_from_explain_cost(explain_cost_content)
+                            print(f"📊 Extracted EXPLAIN COST statistics (traditional method): {len(cost_statistics)} characters")
+                    else:
+                        # 🔄 Traditional extraction approach
                         cost_statistics = extract_cost_statistics_from_explain_cost(explain_cost_content)
-                        print(f"📊 Extracted EXPLAIN COST statistics (traditional method): {len(cost_statistics)} characters")
-                else:
-                    # 🔄 Traditional extraction approach
-                    cost_statistics = extract_cost_statistics_from_explain_cost(explain_cost_content)
-                    print(f"📊 Extracted EXPLAIN COST statistics: {len(cost_statistics)} characters")
+                        print(f"📊 Extracted EXPLAIN COST statistics: {len(cost_statistics)} characters")
                 
-                # 🚨 When DEBUG_ENABLED='Y', always save extracted statistical information
-                debug_enabled = globals().get('DEBUG_ENABLED', 'N')
-                if debug_enabled.upper() == 'Y':
-                    try:
-                        from datetime import datetime
-                        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                        extracted_stats_filename = f"output_explain_cost_statistics_extracted_{timestamp}.json"
-                        
-                        with open(extracted_stats_filename, 'w', encoding='utf-8') as f:
-                            f.write(f"# Extracted EXPLAIN COST statistical information (Generated date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
-                            f.write(f"# Extraction size: {len(cost_statistics):,} characters\n")
-                            f.write(f"# Source file: {latest_cost_file}\n\n")
-                            f.write(cost_statistics)
-                        
-                        print(f"📄 Saved extracted statistical information: {extracted_stats_filename}")
-                        
-                    except Exception as save_error:
-                        print(f"⚠️ Failed to save extracted statistical information: {str(save_error)}")
-                
-                # Size limit for statistical information (countermeasure for LLM token limits)
-                MAX_STATISTICS_SIZE = 50000  # 約50KB制限
-                if len(cost_statistics) > MAX_STATISTICS_SIZE:
-                    # 🚨 DEBUG_ENABLED='Y'の場合、完全なEXPLAIN COST統計情報をファイル保存
+                    # 🚨 When DEBUG_ENABLED='Y', always save extracted statistical information
                     debug_enabled = globals().get('DEBUG_ENABLED', 'N')
                     if debug_enabled.upper() == 'Y':
                         try:
                             from datetime import datetime
                             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                            full_stats_filename = f"output_explain_cost_statistics_full_{timestamp}.txt"
+                            extracted_stats_filename = f"output_explain_cost_statistics_extracted_{timestamp}.json"
                             
-                            with open(full_stats_filename, 'w', encoding='utf-8') as f:
-                                f.write(f"# Complete EXPLAIN COST statistical information (Generated date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
-                                f.write(f"# Original size: {len(cost_statistics):,} characters\n")
-                                f.write(f"# LLM usage size: {MAX_STATISTICS_SIZE:,} characters\n\n")
+                            with open(extracted_stats_filename, 'w', encoding='utf-8') as f:
+                                f.write(f"# Extracted EXPLAIN COST statistical information (Generated date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+                                f.write(f"# Extraction size: {len(cost_statistics):,} characters\n")
+                                f.write(f"# Source file: {latest_cost_file}\n\n")
                                 f.write(cost_statistics)
                             
-                            print(f"📄 Saved complete EXPLAIN COST statistical information: {full_stats_filename}")
+                            print(f"📄 Saved extracted statistical information: {extracted_stats_filename}")
                             
                         except Exception as save_error:
-                            print(f"⚠️ Failed to save EXPLAIN COST statistical information: {str(save_error)}")
+                            print(f"⚠️ Failed to save extracted statistical information: {str(save_error)}")
+                
+                    # Size limit for statistical information (countermeasure for LLM token limits)
+                    MAX_STATISTICS_SIZE = 50000  # 約50KB制限
+                    if len(cost_statistics) > MAX_STATISTICS_SIZE:
+                        # 🚨 DEBUG_ENABLED='Y'の場合、完全なEXPLAIN COST統計情報をファイル保存
+                        debug_enabled = globals().get('DEBUG_ENABLED', 'N')
+                        if debug_enabled.upper() == 'Y':
+                            try:
+                                from datetime import datetime
+                                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                                full_stats_filename = f"output_explain_cost_statistics_full_{timestamp}.txt"
+                                
+                                with open(full_stats_filename, 'w', encoding='utf-8') as f:
+                                    f.write(f"# Complete EXPLAIN COST statistical information (Generated date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+                                    f.write(f"# Original size: {len(cost_statistics):,} characters\n")
+                                    f.write(f"# LLM usage size: {MAX_STATISTICS_SIZE:,} characters\n\n")
+                                    f.write(cost_statistics)
+                                
+                                print(f"📄 Saved complete EXPLAIN COST statistical information: {full_stats_filename}")
+                                
+                            except Exception as save_error:
+                                print(f"⚠️ Failed to save EXPLAIN COST statistical information: {str(save_error)}")
+                        
+                        truncated_statistics = cost_statistics[:MAX_STATISTICS_SIZE]
+                        truncated_statistics += f"\n\n⚠️ Statistical information was too large, truncated to {MAX_STATISTICS_SIZE} characters"
+                        cost_statistics = truncated_statistics
+                        print(f"⚠️ Statistical information truncated to {MAX_STATISTICS_SIZE} characters due to token limit")
                     
-                    truncated_statistics = cost_statistics[:MAX_STATISTICS_SIZE]
-                    truncated_statistics += f"\n\n⚠️ Statistical information was too large, truncated to {MAX_STATISTICS_SIZE} characters"
-                    cost_statistics = truncated_statistics
-                    print(f"⚠️ Statistical information truncated to {MAX_STATISTICS_SIZE} characters due to token limit")
-                    
-            except Exception as e:
-                print(f"⚠️ Failed to load EXPLAIN COST result file: {str(e)}")
-                explain_cost_content = ""
+                except Exception as e:
+                    print(f"⚠️ Failed to load EXPLAIN COST result file: {str(e)}")
+                    explain_cost_content = ""
         
         if not explain_files and not cost_files:
             print("⚠️ EXPLAIN・EXPLAIN COST result files not found")
