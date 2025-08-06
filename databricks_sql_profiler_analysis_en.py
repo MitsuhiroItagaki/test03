@@ -138,8 +138,8 @@ def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_
         if not query_id:
             query_id = f"trial_{attempt_num}"
         
-        # Generate filename: debug_trial_{attempt_num}_{trial_type}_{timestamp}.sql
-        filename = f"debug_trial_{attempt_num:02d}_{trial_type}_{timestamp}.sql"
+        # Generate filename: debug_trial_{attempt_num}_{trial_type}_{timestamp}.txt
+        filename = f"debug_trial_{attempt_num:02d}_{trial_type}_{timestamp}.txt"
         
         # Prepare metadata information
         metadata_header = f"""-- 🐛 DEBUG: Optimization trial query (DEBUG_ENABLED=Y)
