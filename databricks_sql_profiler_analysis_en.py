@@ -9719,10 +9719,17 @@ The following shows the trials executed during the optimization process and the 
         # EXPLAIN要約ファイルの読み込みと追加（動的に最新ファイルを検索）
         explain_summary_section = ""
         try:
-            # 複数のパターンでEXPLAIN要約ファイルを検索（optimized/original両方対応）
+            # 🚀 最適化成功時はオリジナル要約ファイルの検索をスキップ（エラーリスク排除）
             optimized_files = glob.glob("output_explain_summary_optimized_*.md")
-            original_files = glob.glob("output_explain_summary_original_*.md")
-            all_explain_files = optimized_files + original_files
+            
+            if optimization_success is True:
+                # 最適化成功時はオリジナルファイルが生成されないため、最適化ファイルのみ検索
+                all_explain_files = optimized_files
+                print("💰 Skipping original summary file search (optimization succeeded - cost reduction)")
+            else:
+                # 通常は両方のパターンを検索
+                original_files = glob.glob("output_explain_summary_original_*.md")
+                all_explain_files = optimized_files + original_files
             
             if all_explain_files:
                 # ファイル作成時刻で最新のファイルを選択（より確実）
