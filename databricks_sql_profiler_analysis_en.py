@@ -8430,7 +8430,7 @@ def generate_execution_plan_markdown_report_en(plan_info: Dict[str, Any]) -> str
     return '\n'.join(lines)
 
 
-def summarize_explain_results_with_llm(explain_content: str, explain_cost_content: str, query_type: str = "original") -> Dict[str, str]:
+def summarize_explain_results_with_llm(explain_content: str, explain_cost_content: str, query_type: str = "original", optimization_success: bool = None) -> Dict[str, str]:
     """
     EXPLAIN + EXPLAIN COST結果をLLMで要約してトークン制限に対応
     
@@ -8438,10 +8438,23 @@ def summarize_explain_results_with_llm(explain_content: str, explain_cost_conten
         explain_content: EXPLAIN結果の内容
         explain_cost_content: EXPLAIN COST結果の内容  
         query_type: クエリタイプ（"original" または "optimized"）
+        optimization_success: 最適化の成功状態（None, True, False）
     
     Returns:
         Dict containing summarized results
     """
+    
+    # 🚀 LLMコスト削減: オリジナルクエリは最適化成功時はスキップ
+    if query_type == "original" and optimization_success is True:
+        print(f"💰 Skipping LLM summarization for original query (optimization succeeded - cost reduction)")
+        return {
+            'explain_summary': explain_content,
+            'explain_cost_summary': explain_cost_content,
+            'physical_plan_summary': explain_content,
+            'cost_statistics_summary': extract_cost_statistics_from_explain_cost(explain_cost_content),
+            'summarized': False,
+            'skipped_for_cost_optimization': True
+        }
     
     # サイズ制限チェック（合計200KB以上で要約を実行）
     total_size = len(explain_content) + len(explain_cost_content)
@@ -8548,7 +8561,8 @@ def summarize_explain_results_with_llm(explain_content: str, explain_cost_conten
         
         # 🚨 DEBUG_ENABLED='Y'の場合、要約結果をファイルに保存
         debug_enabled = globals().get('DEBUG_ENABLED', 'N')
-        if debug_enabled.upper() == 'Y':
+        # 🚀 LLMコスト削減: オリジナルクエリは最適化成功時はファイル生成もスキップ
+        if debug_enabled.upper() == 'Y' and not (query_type == "original" and optimization_success is True):
             try:
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -9052,7 +9066,7 @@ def translate_analysis_to_japanese(english_text: str) -> str:
         print(f"⚠️ Translation error: {str(e)}, using original English text")
         return english_text
 
-def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None) -> str:
+def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None, optimization_success: bool = None) -> str:
     """
     包括的な最適化レポートを生成
     EXPLAIN + EXPLAIN COST実行フラグがYの場合は、統計情報も含める
@@ -9167,7 +9181,7 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
                 print(f"⚠️ Failed to load EXPLAIN COST results: {str(e)}")
         
         # 📊 要約機能を使ってトークン制限に対応
-        summary_results = summarize_explain_results_with_llm(explain_content, explain_cost_content, query_type)
+        summary_results = summarize_explain_results_with_llm(explain_content, explain_cost_content, query_type, optimization_success)
         
         # 要約結果を使ってレポートセクションを構築
         if summary_results['summarized']:
@@ -10809,7 +10823,7 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     
     return True
 
-def save_optimized_sql_files(original_query: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", llm_response: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None) -> Dict[str, str]:
+def save_optimized_sql_files(original_query: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", llm_response: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None, optimization_success: bool = None) -> Dict[str, str]:
     """
     最適化されたSQLクエリを実行可能な形でファイルに保存
     
@@ -10949,7 +10963,7 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
         report_data = llm_response if llm_response else optimized_result
     
     initial_report = generate_comprehensive_optimization_report(
-        query_id, report_data, metrics, analysis_result, performance_comparison, best_attempt_number, optimization_attempts
+        query_id, report_data, metrics, analysis_result, performance_comparison, best_attempt_number, optimization_attempts, optimization_success
     )
     
     # LLMでレポートを推敲（詳細な技術情報を保持）
@@ -12692,7 +12706,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
             metrics,
             analysis_result,
             "",  # llm_response
-            None  # performance_comparison
+            None,  # performance_comparison
+            None,  # best_attempt_number
+            None,  # optimization_attempts
+            False  # 🚀 最適化失敗（LLMエラー）
         )
         
         return {
@@ -12770,7 +12787,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                             metrics,
                             analysis_result,
                             "",  # llm_response
-                            performance_comparison  # 🔍 詳細なパフォーマンス比較結果を含める
+                            performance_comparison,  # 🔍 詳細なパフォーマンス比較結果を含める
+                            None,  # best_attempt_number
+                            None,  # optimization_attempts
+                            False  # 🚀 最適化失敗（パフォーマンス悪化）
                         )
                         
                         return {
@@ -12798,7 +12818,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                         metrics,
                         analysis_result,
                         "",  # llm_response
-                        None  # performance_comparison
+                        None,  # performance_comparison
+                        None,  # best_attempt_number
+                        None,  # optimization_attempts
+                        False  # 🚀 最適化失敗（比較エラー）
                     )
                     
                     return {
@@ -12866,7 +12889,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                     metrics,
                     analysis_result,
                     "",  # llm_response
-                    None  # performance_comparison
+                    None,  # performance_comparison
+                    None,  # best_attempt_number
+                    None,  # optimization_attempts
+                    False  # 🚀 最適化失敗（最大試行達成）
                 )
                 
                 # 失敗時のログ記録
@@ -12952,7 +12978,10 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                     metrics,
                     analysis_result,
                     "",  # llm_response
-                    None  # performance_comparison
+                    None,  # performance_comparison
+                    None,  # best_attempt_number
+                    None,  # optimization_attempts
+                    False  # 🚀 最適化失敗（修正時LLMエラー）
                 )
                 
                 return {
@@ -13657,7 +13686,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     optimized_result,  # 📊 元のLLMレスポンス（レポート用）
                     performance_comparison,  # 🔍 パフォーマンス比較結果
                     best_attempt_number,  # 🎯 ベスト試行番号（レポート用）
-                    optimization_attempts  # 🎯 最適化試行詳細（レポート用）
+                    optimization_attempts,  # 🎯 最適化試行詳細（レポート用）
+                    True  # 🚀 最適化成功
                 )
                 
                 print("\n📁 Optimization files:")
@@ -13700,7 +13730,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     fallback_result,  # 失敗情報を含むレポート
                     None,  # パフォーマンス比較は失敗
                     best_attempt_number,  # 最適化試行番号
-                    optimization_attempts  # 最適化試行詳細
+                    optimization_attempts,  # 最適化試行詳細
+                    False  # 🚀 最適化失敗
                 )
                 
                 print("\n📁 Generated files (failure case):")
@@ -13778,7 +13809,10 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     current_metrics if 'current_metrics' in locals() else {},
                     "緊急フォールバック: 統合処理でエラーが発生したため、基本分析のみ実行",
                     f"緊急フォールバック処理\n\nエラー詳細:\n{str(e)}\n\n元クエリをそのまま使用しています。",
-                    None  # パフォーマンス比較結果なし
+                    None,  # パフォーマンス比較結果なし
+                    None,  # best_attempt_number
+                    None,  # optimization_attempts
+                    False  # 🚀 最適化失敗（緊急時）
                 )
                 
                 print("\n📁 Emergency generated files:")
