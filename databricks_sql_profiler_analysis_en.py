@@ -110,6 +110,126 @@ DEBUG_ENABLED = 'N'
 CATALOG = 'tpcds'
 DATABASE = 'tpcds_sf1000_delta_lc'
 
+# === 🎯 Query Optimization Points Extraction Functions ===
+
+def extract_optimization_points_from_query(query: str, trial_type: str, attempt_num: int) -> str:
+    """
+    成功したクエリから最適化ポイントを軽量抽出（LLM不使用）
+    
+    Args:
+        query: 最適化されたクエリ
+        trial_type: 試行タイプ
+        attempt_num: 試行番号
+    
+    Returns:
+        str: 抽出された最適化ポイント
+    """
+    import re
+    
+    optimization_points = []
+    
+    # 1. インデックス関連の最適化
+    if re.search(r'CREATE\s+INDEX|USE\s+INDEX|FORCE\s+INDEX', query, re.IGNORECASE):
+        optimization_points.append("🔍 Index optimization applied")
+    
+    # 2. JOIN順序・方法の最適化
+    join_optimizations = []
+    if re.search(r'BROADCAST\s+JOIN|SHUFFLE\s+JOIN', query, re.IGNORECASE):
+        join_optimizations.append("JOIN strategy specification")
+    if re.search(r'/\*\+\s*BROADCAST\s*\*/|/\*\+\s*SHUFFLE\s*\*/', query, re.IGNORECASE):
+        join_optimizations.append("JOIN hint usage")
+    if join_optimizations:
+        optimization_points.append(f"🔗 JOIN optimization: {', '.join(join_optimizations)}")
+    
+    # 3. 統計情報・テーブルヒント
+    if re.search(r'ANALYZE\s+TABLE|UPDATE\s+STATISTICS', query, re.IGNORECASE):
+        optimization_points.append("📊 Statistics update applied")
+    if re.search(r'/\*\+[^*]*\*/|--\+', query, re.IGNORECASE):
+        optimization_points.append("💡 Optimizer hints applied")
+    
+    # 4. フィルタリング最適化
+    if re.search(r'WHERE.*IN\s*\([^)]*SELECT|EXISTS\s*\(', query, re.IGNORECASE):
+        optimization_points.append("🎯 Subquery filtering optimization")
+    if re.search(r'PARTITION\s*\([^)]*\)', query, re.IGNORECASE):
+        optimization_points.append("📂 Partition filtering applied")
+    
+    # 5. 集約・ソート最適化
+    if re.search(r'GROUP\s+BY.*HAVING|WINDOW\s+FUNCTION', query, re.IGNORECASE):
+        optimization_points.append("📈 Aggregation optimization")
+    
+    # 6. キャッシュ・マテリアライズ
+    if re.search(r'CACHE\s+TABLE|MATERIALIZE', query, re.IGNORECASE):
+        optimization_points.append("💾 Caching/Materialization applied")
+    
+    # 7. ストレージ最適化
+    if re.search(r'PARQUET|DELTA|COLUMNAR', query, re.IGNORECASE):
+        optimization_points.append("🗃️ Storage format optimization")
+    
+    if not optimization_points:
+        optimization_points.append("⚡ General query structure optimization")
+    
+    return f"Trial {attempt_num} ({trial_type}): {'; '.join(optimization_points)}"
+
+def save_optimization_points_summary(optimization_point: str) -> None:
+    """
+    最適化ポイントを要約ファイルに追記
+    
+    Args:
+        optimization_point: 抽出された最適化ポイント
+    """
+    try:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        summary_filename = "optimization_points_summary.txt"
+        
+        with open(summary_filename, 'a', encoding='utf-8') as f:
+            f.write(f"[{timestamp}] {optimization_point}\n")
+        
+        print(f"📝 Optimization points saved: {optimization_point}")
+        
+    except Exception as e:
+        print(f"⚠️ Failed to save optimization points: {str(e)}")
+
+def load_optimization_points_summary() -> str:
+    """
+    保存された最適化ポイント要約を読み込み
+    
+    Returns:
+        str: 最適化ポイント要約（最終レポート用）
+    """
+    try:
+        summary_filename = "optimization_points_summary.txt"
+        
+        with open(summary_filename, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        
+        if not content:
+            return ""
+        
+        # 最新の5つのポイントに制限（レポートサイズを抑制）
+        lines = content.split('\n')
+        recent_points = lines[-5:] if len(lines) > 5 else lines
+        
+        summary = "## 🎯 Query Optimization Points Summary\n\n"
+        summary += "Recent successful optimization techniques applied:\n\n"
+        
+        for line in recent_points:
+            if line.strip():
+                # タイムスタンプを除去してポイントのみを抽出
+                point_content = line.split('] ', 1)[-1] if '] ' in line else line
+                summary += f"- {point_content}\n"
+        
+        summary += "\n"
+        return summary
+        
+    except FileNotFoundError:
+        return ""
+    except Exception as e:
+        print(f"⚠️ Failed to load optimization points summary: {str(e)}")
+        return ""
+
+# === End of Query Optimization Points Extraction Functions ===
+
 # COMMAND ----------
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
@@ -10129,6 +10249,11 @@ Please check:
 
 *Report generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 """
+
+    # 🎯 最適化ポイント要約を最終レポートに追加
+    optimization_points_summary = load_optimization_points_summary()
+    if optimization_points_summary:
+        report += "\n" + optimization_points_summary
     
     return report
 
@@ -12545,6 +12670,12 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                         
                         if optimized_cost_success:
                             print("🎯 Corrected query EXPLAIN execution successful!")
+                            # 🎯 最適化ポイント抽出・保存（EXPLAIN成功時のみ）
+                            try:
+                                optimization_point = extract_optimization_points_from_query(current_query, "error_correction", attempt_num)
+                                save_optimization_points_summary(optimization_point)
+                            except Exception as e:
+                                print(f"⚠️ Optimization points extraction failed: {str(e)}")
                         else:
                             print("⚠️ Error occurred even with corrected query: Executing fallback evaluation")
                     else:
@@ -14050,6 +14181,16 @@ elif original_query_for_explain and original_query_for_explain.strip():
             
             if retry_result['final_status'] in ['optimization_success', 'partial_success']:
                 print("✅ Successfully executed EXPLAIN for optimized query!")
+                
+                # 🎯 最適化ポイント抽出・保存（EXPLAIN成功時のみ）
+                try:
+                    # optimized_queryはスコープに応じて適切な変数を使用
+                    query_for_extraction = locals().get('optimized_query', locals().get('final_query', ''))
+                    if query_for_extraction:
+                        optimization_point = extract_optimization_points_from_query(query_for_extraction, "single_optimization", 1)
+                        save_optimization_points_summary(optimization_point)
+                except Exception as e:
+                    print(f"⚠️ Optimization points extraction failed: {str(e)}")
                 
                 # 成功時のファイル情報表示
                 explain_result = retry_result.get('explain_result', {})
