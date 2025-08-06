@@ -9209,6 +9209,119 @@ def translate_analysis_to_japanese(english_text: str) -> str:
         print(f"⚠️ Translation error: {str(e)}, using original English text")
         return english_text
 
+def format_trial_history_summary(optimization_attempts: list, language: str = 'ja') -> str:
+    """
+    最適化試行履歴を簡潔にフォーマットする（DEBUG_ENABLED設定に関係なく利用可能）
+    
+    Args:
+        optimization_attempts: 試行履歴リスト
+        language: 出力言語 ('ja' or 'en')
+    
+    Returns:
+        str: フォーマットされた試行履歴
+    """
+    if not optimization_attempts:
+        return ""
+    
+    # ステータス翻訳マッピング
+    status_mapping = {
+        'ja': {
+            'substantial_success': '大幅改善達成',
+            'partial_improvement': '部分的改善', 
+            'insufficient_improvement': '改善不足',
+            'performance_degraded': 'パフォーマンス悪化',
+            'llm_error': 'LLMエラー',
+            'explain_failed': 'EXPLAIN実行失敗',
+            'comparison_error': '比較エラー',
+            'fallback_improved': 'フォールバック改善',
+            'fallback_degradation_detected': 'フォールバック悪化検出',
+            'fallback_insufficient_improvement': 'フォールバック改善不足'
+        },
+        'en': {
+            'substantial_success': 'Significant improvement achieved',
+            'partial_improvement': 'Partial improvement',
+            'insufficient_improvement': 'Insufficient improvement', 
+            'performance_degraded': 'Performance degraded',
+            'llm_error': 'LLM error',
+            'explain_failed': 'EXPLAIN execution failed',
+            'comparison_error': 'Comparison error',
+            'fallback_improved': 'Fallback improved',
+            'fallback_degradation_detected': 'Fallback degradation detected',
+            'fallback_insufficient_improvement': 'Fallback insufficient improvement'
+        }
+    }
+    
+    # 原因翻訳マッピング
+    cause_mapping = {
+        'ja': {
+            'excessive_joins': 'JOIN操作増加',
+            'cost_increase': 'コスト増加',
+            'memory_increase': 'メモリ増加', 
+            'optimization_backfire': '最適化逆効果',
+            'analysis_error': '分析エラー',
+            'no_degradation': '悪化なし',
+            'unknown': '原因不明'
+        },
+        'en': {
+            'excessive_joins': 'Excessive JOIN operations',
+            'cost_increase': 'Cost increase',
+            'memory_increase': 'Memory increase',
+            'optimization_backfire': 'Optimization backfire', 
+            'analysis_error': 'Analysis error',
+            'no_degradation': 'No degradation',
+            'unknown': 'Unknown cause'
+        }
+    }
+    
+    trial_lines = []
+    
+    for attempt in optimization_attempts:
+        attempt_num = attempt.get('attempt', 0)
+        status = attempt.get('status', 'unknown')
+        cost_ratio = attempt.get('cost_ratio', 1.0)
+        memory_ratio = attempt.get('memory_ratio', 1.0)
+        
+        # ステータス表示
+        status_text = status_mapping.get(language, status_mapping['en']).get(status, status)
+        
+        # コスト改善率計算
+        cost_improvement = (1 - cost_ratio) * 100
+        cost_display = f"{cost_improvement:+.1f}%" if cost_ratio != 1.0 else "0%"
+        
+        # 基本情報
+        if language == 'ja':
+            trial_line = f"- 試行{attempt_num}: {status_text}"
+        else:
+            trial_line = f"- Trial {attempt_num}: {status_text}"
+        
+        # コスト情報追加（エラー以外の場合）
+        if status not in ['llm_error', 'explain_failed', 'comparison_error']:
+            if language == 'ja':
+                trial_line += f" (コスト変化: {cost_display})"
+            else:
+                trial_line += f" (Cost change: {cost_display})"
+        
+        # 悪化原因追加（該当する場合）
+        if status in ['performance_degraded', 'fallback_degradation_detected']:
+            degradation_analysis = attempt.get('degradation_analysis', {})
+            primary_cause = degradation_analysis.get('primary_cause', 'unknown')
+            cause_text = cause_mapping.get(language, cause_mapping['en']).get(primary_cause, primary_cause)
+            
+            if language == 'ja':
+                trial_line += f", 原因: {cause_text}"
+            else:
+                trial_line += f", Cause: {cause_text}"
+        
+        trial_lines.append(trial_line)
+    
+    # ヘッダー追加
+    if language == 'ja':
+        header = "**📊 詳細試行履歴:**"
+    else:
+        header = "**📊 Detailed Trial History:**"
+    
+    return header + "\n" + "\n".join(trial_lines)
+
 def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None, optimization_success: bool = None) -> str:
     """
     包括的な最適化レポートを生成
@@ -9577,6 +9690,9 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
                 final_selection = f"試行{best_attempt_number}番"
                 selection_reason = "コスト効率が最も良い試行を選択"
             
+            # 詳細試行履歴を生成
+            detailed_trial_history = format_trial_history_summary(optimization_attempts, 'ja')
+            
             optimization_process_details = f"""### 🎯 最適化プロセス詳細
 最適化プロセスで実行された試行とその選択理由を以下に示します：
 
@@ -9584,6 +9700,8 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 - 試行回数: {total_attempts}回実行
 - 最終選択: {final_selection}
 - 選択理由: {selection_reason}
+
+{detailed_trial_history}
 
 **🏆 選択された最適化の効果:**
 - コスト削減率: {cost_improvement}% (EXPLAIN COST比較)
@@ -9821,6 +9939,9 @@ The following topics are analyzed for process evaluation:
                 final_selection_en = f"Trial {best_attempt_number}"
                 selection_reason_en = "Selected the trial with the best cost efficiency"
             
+            # 詳細試行履歴を生成（英語版）
+            detailed_trial_history_en = format_trial_history_summary(optimization_attempts, 'en')
+            
             optimization_process_details_en = f"""### 🎯 Optimization Process Details
 The following shows the trials executed during the optimization process and the selection rationale:
 
@@ -9828,6 +9949,8 @@ The following shows the trials executed during the optimization process and the 
 - Trial count: {total_attempts} attempts executed
 - Final selection: {final_selection_en}
 - Selection reason: {selection_reason_en}
+
+{detailed_trial_history_en}
 
 **🏆 Selected Optimization Effects:**
 - Cost reduction rate: {cost_improvement}% (EXPLAIN COST comparison)
