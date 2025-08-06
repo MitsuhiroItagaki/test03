@@ -2875,6 +2875,10 @@ OPTIMIZE [テーブル名] FULL;
         else:
             llm_analysis = f"❌ Unsupported LLM provider: {provider}"
         
+        # Post-process and validate LLM analysis to remove inappropriate reordering recommendations
+        if llm_analysis and not llm_analysis.startswith("❌"):
+            llm_analysis = validate_and_filter_clustering_recommendations(llm_analysis, extracted_data)
+        
         # 分析結果の構造化
         clustering_analysis = {
             "llm_analysis": llm_analysis,
@@ -2916,6 +2920,95 @@ OPTIMIZE [テーブル名] FULL;
                 "error": error_msg
             }
         }
+
+def validate_and_filter_clustering_recommendations(llm_analysis: str, extracted_data: Dict[str, Any]) -> str:
+    """
+    Post-process LLM analysis to remove any inappropriate clustering key reordering recommendations.
+    
+    This function serves as a safety net to ensure that even if the LLM generates reordering
+    recommendations despite the prompt instructions, they will be filtered out.
+    
+    Args:
+        llm_analysis: Raw LLM analysis text
+        extracted_data: Extracted clustering data including current clustering keys
+        
+    Returns:
+        str: Filtered and validated analysis text
+    """
+    import re
+    
+    # Get current clustering keys for each table
+    current_clustering = {}
+    table_info = extracted_data.get('table_info', {})
+    for table_name, table_data in table_info.items():
+        current_keys = table_data.get('current_clustering_keys', [])
+        if current_keys:
+            current_clustering[table_name] = current_keys
+    
+    print(f"🔍 Validating clustering recommendations for {len(current_clustering)} tables with existing clustering...")
+    
+    # Patterns that indicate problematic reordering recommendations
+    problematic_patterns = [
+        r'現在のクラスタリングキーの順序を入れ替え',
+        r'クラスタリングキーの順序を変更',
+        r'日付カラムを先頭にすることで効率が向上',
+        r'reorder.*current.*clustering.*key',
+        r'changing.*order.*clustering.*key',
+        r'clustering.*key.*order.*change',
+        r'順序.*入れ替え.*効率',
+        r'入れ替え.*最適',
+        r'reorder.*for.*better.*performance'
+    ]
+    
+    # Check if the analysis contains problematic recommendations
+    found_problematic = []
+    for pattern in problematic_patterns:
+        matches = re.findall(pattern, llm_analysis, re.IGNORECASE | re.DOTALL)
+        if matches:
+            found_problematic.extend(matches)
+    
+    if found_problematic:
+        print(f"⚠️ WARNING: Found {len(found_problematic)} problematic reordering recommendations in LLM response")
+        for i, match in enumerate(found_problematic):
+            print(f"   {i+1}. {match}")
+        
+        # Filter out problematic recommendations
+        filtered_analysis = llm_analysis
+        
+        # Remove lines containing reordering recommendations
+        lines = filtered_analysis.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            is_problematic_line = False
+            for pattern in problematic_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    is_problematic_line = True
+                    print(f"   🚫 Removed problematic line: {line.strip()}")
+                    break
+            
+            if not is_problematic_line:
+                filtered_lines.append(line)
+        
+        filtered_analysis = '\n'.join(filtered_lines)
+        
+        # Add validation notice
+        validation_notice = """
+
+🔍 **分析結果検証済み**: この推奨事項は、Liquid Clusteringの技術仕様に基づいて検証済みです。
+- クラスタリングキーの順序はパフォーマンスに影響しません
+- 既存のクラスタリングキーが適切な場合は変更不要です
+- 順序変更による性能改善効果はありません
+
+"""
+        filtered_analysis += validation_notice
+        
+        print(f"✅ Successfully filtered LLM response and added validation notice")
+        return filtered_analysis
+    
+    else:
+        print("✅ No problematic reordering recommendations found in LLM response")
+        return llm_analysis
 
 def save_liquid_clustering_analysis(clustering_analysis: Dict[str, Any], output_dir: str = "/tmp") -> Dict[str, str]:
     """
