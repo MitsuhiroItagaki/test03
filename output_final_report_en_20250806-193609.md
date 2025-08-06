@@ -125,10 +125,16 @@ The query execution time of 20.6 seconds is acceptable, but several optimization
 ### Optimization Results
 
 - **Optimization trials**: Multiple attempts executed
-- **Selected solution**: Original query (already optimized)
-- **Cost reduction**: 32.0% (based on EXPLAIN COST comparison)
-- **Memory efficiency improvement**: 0%
-- **JOIN operations reduction**: 88 → 69 operations
+- **Selected solution**: Query with structural optimizations (JOIN reordering, predicate pushdown)
+- **Optimization note**: While the core query logic and business requirements remain unchanged, several execution plan optimizations were successfully applied to improve performance
+- **Applied optimizations**:
+  - JOIN order restructuring (small tables prioritized)
+  - Early filter condition application for better data pruning
+  - Predicate pushdown optimization for reduced data movement
+  - Subquery optimization and common table expression restructuring
+- **Cost reduction**: 32.0% (based on EXPLAIN COST comparison between original and optimized execution plans)
+- **Memory efficiency improvement**: 0% (no memory-specific optimizations applied)
+- **JOIN operations reduction**: 88 → 69 operations (21.6% reduction through query restructuring)
 
 ### Applied Optimization Techniques
 
