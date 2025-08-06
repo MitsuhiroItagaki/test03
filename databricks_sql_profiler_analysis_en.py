@@ -10924,7 +10924,9 @@ def fallback_performance_evaluation(original_explain: str, optimized_explain: st
             'recommendation': recommendation,
             'summary': summary,
             'confidence': 'medium',
-            'details': improvements + concerns if improvements or concerns else ["実行プランに大きな変化なし"]
+            'details': improvements + concerns if improvements or concerns else ["実行プランに大きな変化なし"],
+            'original_estimated_spill_gb': original_metrics.get('estimated_spill_gb', 0),
+            'optimized_estimated_spill_gb': optimized_metrics.get('estimated_spill_gb', 0)
         }
         
     except Exception as e:
@@ -10983,7 +10985,16 @@ def generate_fallback_performance_section(fallback_evaluation: Dict[str, Any], l
 | JOIN操作数 | {orig['join_count']} | {opt['join_count']} | {'✅改善' if opt['join_count'] < orig['join_count'] else '❌増加' if opt['join_count'] > orig['join_count'] else '➖同等'} |
 | Photon操作数 | {orig['photon_ops']} | {opt['photon_ops']} | {'✅改善' if opt['photon_ops'] > orig['photon_ops'] else '❌減少' if opt['photon_ops'] < orig['photon_ops'] else '➖同等'} |
 | Shuffle操作数 | {orig['exchange_count']} | {opt['exchange_count']} | {'✅改善' if opt['exchange_count'] < orig['exchange_count'] else '❌増加' if opt['exchange_count'] > orig['exchange_count'] else '➖同等'} |
-| プラン深度 | {orig['plan_depth']} | {opt['plan_depth']} | {'✅改善' if opt['plan_depth'] < orig['plan_depth'] else '❌増加' if opt['plan_depth'] > orig['plan_depth'] else '➖同等'} |
+| プラン深度 | {orig['plan_depth']} | {opt['plan_depth']} | {'✅改善' if opt['plan_depth'] < orig['plan_depth'] else '❌増加' if opt['plan_depth'] > orig['plan_depth'] else '➖同等'} |"""
+            
+            # スピル推定値がある場合は追加
+            if orig.get('estimated_spill_gb', 0) > 0 or opt.get('estimated_spill_gb', 0) > 0:
+                orig_spill = orig.get('estimated_spill_gb', 0)
+                opt_spill = opt.get('estimated_spill_gb', 0)
+                spill_status = '✅改善' if opt_spill < orig_spill else '❌増加' if opt_spill > orig_spill else '➖同等'
+                section += f"""| 推定スピル量 | {orig_spill:.2f}GB | {opt_spill:.2f}GB | {spill_status} |"""
+            
+            section += f"""
 
 """
         
@@ -12106,21 +12117,58 @@ def parse_partitioning_columns(columns_string):
 
 def estimate_spill_risk(metrics):
     """
-    EXPLAIN COSTのメトリクスからスピルリスクを推定
+    EXPLAIN COSTのメトリクスからスピルリスクを推定（強化版）
     """
     try:
-        # メモリ使用量が多い + JOIN操作が多い = スピルリスク高
+        # 基本メモリ圧迫要因
         memory_pressure_factor = metrics['memory_estimates'] / (1024**3) if metrics['memory_estimates'] > 0 else 0  # GB単位
         join_complexity_factor = metrics['join_operations'] * 0.1
         data_volume_factor = metrics['total_size_bytes'] / (1024**4) if metrics['total_size_bytes'] > 0 else 0  # TB単位
         partition_efficiency_factor = 1.0 / max(metrics['total_partitions'], 1) * 1000  # パーティション数が少ないとリスク増
         
+        # JOIN操作によるメモリ推定（強化）
+        join_memory_risk = 0
+        if metrics['join_operations'] > 0 and metrics['total_size_bytes'] > 0:
+            # JOINでは両テーブルがメモリに必要（簡易推定）
+            estimated_join_memory_gb = (metrics['total_size_bytes'] * 0.3) / (1024**3)  # 30%がJOINに必要と仮定
+            join_memory_risk = estimated_join_memory_gb * metrics['join_operations'] * 0.2
+        
+        # 行数ベースの集約リスク
+        aggregation_risk = 0
+        if metrics['total_rows'] > 0:
+            # 大量行の集約はメモリを多く消費
+            million_rows = metrics['total_rows'] / 1000000
+            aggregation_risk = min(million_rows * 0.1, 2.0)  # 最大2.0に制限
+        
+        # パーティションスキューリスク（シャッフルパーティション数ベース）
+        skew_risk = 0
+        if metrics.get('shuffle_partitions', 0) > 0:
+            # シャッフルパーティションが少ないとスキューリスク増
+            if metrics['shuffle_partitions'] < 100:
+                skew_risk = 1.0 / max(metrics['shuffle_partitions'], 1) * 20
+        
+        # 総合スピルリスクスコア
         spill_risk_score = (
-            memory_pressure_factor * 0.4 +
-            join_complexity_factor * 0.3 +
-            data_volume_factor * 0.2 +
-            partition_efficiency_factor * 0.1
+            memory_pressure_factor * 0.25 +
+            join_complexity_factor * 0.20 +
+            data_volume_factor * 0.15 +
+            partition_efficiency_factor * 0.10 +
+            join_memory_risk * 0.15 +
+            aggregation_risk * 0.10 +
+            skew_risk * 0.05
         )
+        
+        # スピル推定量も計算（GB単位）
+        estimated_spill_gb = 0
+        if spill_risk_score > 1.0:
+            # リスクスコアが1.0を超える場合、推定スピル量を計算
+            excess_risk = spill_risk_score - 1.0
+            estimated_spill_gb = excess_risk * (metrics['total_size_bytes'] / (1024**3)) * 0.1  # 10%スピルと仮定
+        
+        # メトリクスに推定値を追加
+        metrics['estimated_spill_gb'] = estimated_spill_gb
+        metrics['spill_probability'] = min(spill_risk_score * 0.3, 1.0)  # 確率は最大100%
+        metrics['memory_pressure_score'] = memory_pressure_factor + join_memory_risk
         
         return spill_risk_score
         
@@ -12139,11 +12187,12 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     """
     # メトリクス重み設定（重要度に基づく）
     weights = {
-        'data_processing_weight': 0.30,    # データサイズ + 行数
-        'operation_complexity_weight': 0.25, # スキャン + JOIN操作
+        'data_processing_weight': 0.25,    # データサイズ + 行数
+        'operation_complexity_weight': 0.20, # スキャン + JOIN操作
         'memory_efficiency_weight': 0.20,   # メモリ予測 + スピルリスク
-        'parallelism_weight': 0.15,         # シャッフルパーティション
-        'partitioning_efficiency_weight': 0.10  # ハッシュパーティション効率
+        'spill_management_weight': 0.15,    # スピル推定 + メモリ圧迫（新規追加）
+        'parallelism_weight': 0.12,         # シャッフルパーティション
+        'partitioning_efficiency_weight': 0.08  # ハッシュパーティション効率
     }
     
     # 1. データ処理効率比率
@@ -12168,12 +12217,23 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     # スピルリスクが減ることは大きなメリットなので重み付け
     memory_efficiency_ratio = (memory_ratio * 0.4 + spill_risk_ratio * 0.6)
     
-    # 4. 並列処理効率比率
+    # 4. スピル管理効率比率（新規追加）
+    estimated_spill_ratio = safe_ratio(optimized_metrics.get('estimated_spill_gb', 0), 
+                                      original_metrics.get('estimated_spill_gb', 0))
+    memory_pressure_ratio = safe_ratio(optimized_metrics.get('memory_pressure_score', 0), 
+                                      original_metrics.get('memory_pressure_score', 0))
+    spill_probability_ratio = safe_ratio(optimized_metrics.get('spill_probability', 0), 
+                                        original_metrics.get('spill_probability', 0))
+    
+    # スピル関連の総合効率（スピルが減ることは大きなメリット）
+    spill_management_ratio = (estimated_spill_ratio * 0.4 + memory_pressure_ratio * 0.3 + spill_probability_ratio * 0.3)
+    
+    # 5. 並列処理効率比率
     shuffle_ratio = safe_ratio(optimized_metrics['shuffle_partitions'], 
                               original_metrics['shuffle_partitions'])
     parallelism_ratio = shuffle_ratio
     
-    # 5. パーティション効率比率
+    # 6. パーティション効率比率
     hash_partition_ratio = safe_ratio(optimized_metrics['hash_partitions'], 
                                      original_metrics['hash_partitions'])
     total_partition_ratio = safe_ratio(optimized_metrics['total_partitions'], 
@@ -12185,6 +12245,7 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
         data_processing_ratio * weights['data_processing_weight'] +
         operation_complexity_ratio * weights['operation_complexity_weight'] +
         memory_efficiency_ratio * weights['memory_efficiency_weight'] +
+        spill_management_ratio * weights['spill_management_weight'] +
         parallelism_ratio * weights['parallelism_weight'] +
         partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']
     )
@@ -12195,6 +12256,7 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
             'data_processing': data_processing_ratio,
             'operation_complexity': operation_complexity_ratio,
             'memory_efficiency': memory_efficiency_ratio,
+            'spill_management': spill_management_ratio,
             'parallelism': parallelism_ratio,
             'partitioning_efficiency': partitioning_efficiency_ratio
         },
@@ -12205,6 +12267,9 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
             'join_ratio': join_ratio,
             'memory_ratio': memory_ratio,
             'spill_risk_ratio': spill_risk_ratio,
+            'estimated_spill_ratio': estimated_spill_ratio,
+            'memory_pressure_ratio': memory_pressure_ratio,
+            'spill_probability_ratio': spill_probability_ratio,
             'shuffle_ratio': shuffle_ratio,
             'hash_partition_ratio': hash_partition_ratio,
             'total_partition_ratio': total_partition_ratio
@@ -12355,7 +12420,11 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 'hash_partitions': 0,           # 新規追加：ハッシュパーティション数
                 'total_partitions': 0,          # 新規追加：総パーティション数
                 'partition_details': [],        # 新規追加：パーティション詳細情報
-                'spill_risk_score': 0          # 新規追加：スピルリスク推定値
+                'spill_risk_score': 0,          # 新規追加：スピルリスク推定値
+                'estimated_spill_gb': 0,        # 新規追加：推定スピル量（GB）
+                'spill_probability': 0.0,       # 新規追加：スピル発生確率
+                'memory_pressure_score': 0.0,   # 新規追加：メモリ圧迫スコア
+                'exchange_count': 0             # 新規追加：Exchange/Shuffle操作数
             }
             
             # サイズとメモリ使用量を抽出
@@ -12406,9 +12475,10 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                     except:
                         continue
             
-            # スキャン・JOIN操作数をカウント
+            # スキャン・JOIN・Exchange操作数をカウント
             metrics['scan_operations'] = len(re.findall(r'Scan|FileScan|TableScan', explain_cost_text, re.IGNORECASE))
             metrics['join_operations'] = len(re.findall(r'Join|HashJoin|SortMergeJoin', explain_cost_text, re.IGNORECASE))
+            metrics['exchange_count'] = len(re.findall(r'\bExchange\b|\bShuffle\b', explain_cost_text, re.IGNORECASE))
             
             # 従来のシャッフルパーティション数
             shuffle_matches = re.findall(r'partitions?["\s]*[:=]\s*([0-9]+)', explain_cost_text, re.IGNORECASE)
@@ -12523,6 +12593,9 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             'is_optimization_beneficial': comprehensive_judgment['is_optimization_beneficial'],
             'recommendation': comprehensive_judgment['recommendation'],
             'comprehensive_analysis': comprehensive_judgment,  # 詳細分析結果を保存
+            'original_estimated_spill_gb': original_metrics.get('estimated_spill_gb', 0),
+            'optimized_estimated_spill_gb': optimized_metrics.get('estimated_spill_gb', 0),
+            'estimated_spill_improvement': (original_metrics.get('estimated_spill_gb', 0) - optimized_metrics.get('estimated_spill_gb', 0))
         })
         
         # 🚀 包括的判定結果の詳細情報を生成
@@ -12566,6 +12639,30 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         spill_risk_improvement = (1 - detailed_ratios['spill_risk_ratio']) * 100
         if abs(spill_risk_improvement) > 5:
             detailed_factors.append(f"⚡ Spill risk: {spill_risk_improvement:+.1f}% (ratio: {detailed_ratios['spill_risk_ratio']:.3f}x)")
+        
+        # スピル推定量（新規追加）
+        if 'estimated_spill_ratio' in detailed_ratios:
+            estimated_spill_improvement = (1 - detailed_ratios['estimated_spill_ratio']) * 100
+            if abs(estimated_spill_improvement) > 1:
+                detailed_factors.append(f"💧 Estimated spill: {estimated_spill_improvement:+.1f}% (ratio: {detailed_ratios['estimated_spill_ratio']:.3f}x)")
+        
+        # メモリ圧迫スコア（新規追加）
+        if 'memory_pressure_ratio' in detailed_ratios:
+            memory_pressure_improvement = (1 - detailed_ratios['memory_pressure_ratio']) * 100
+            if abs(memory_pressure_improvement) > 5:
+                detailed_factors.append(f"🧠 Memory pressure: {memory_pressure_improvement:+.1f}% (ratio: {detailed_ratios['memory_pressure_ratio']:.3f}x)")
+        
+        # スピル確率（新規追加）
+        if 'spill_probability_ratio' in detailed_ratios:
+            spill_prob_improvement = (1 - detailed_ratios['spill_probability_ratio']) * 100
+            if abs(spill_prob_improvement) > 10:
+                detailed_factors.append(f"🎲 Spill probability: {spill_prob_improvement:+.1f}% (ratio: {detailed_ratios['spill_probability_ratio']:.3f}x)")
+        
+        # シャッフル効率（新規追加）
+        if 'shuffle_ratio' in detailed_ratios:
+            shuffle_improvement = (1 - detailed_ratios['shuffle_ratio']) * 100
+            if abs(shuffle_improvement) > 1:
+                detailed_factors.append(f"🔀 Shuffle efficiency: {shuffle_improvement:+.1f}% (ratio: {detailed_ratios['shuffle_ratio']:.3f}x)")
         
         # パーティション効率
         if 'hash_partition_ratio' in detailed_ratios:
@@ -13171,9 +13268,19 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     # 改善なしまたは悪化の場合
                     if performance_comparison['performance_degradation_detected']:
                         print(f"🚨 Attempt {attempt_num}: Performance increase detected")
+                        print(f"   📊 Cost ratio: {current_cost_ratio:.3f}")
+                        print(f"   💾 Memory ratio: {current_memory_ratio:.3f}")
+                        # スピル推定値も表示
+                        if 'estimated_spill_gb' in performance_comparison:
+                            orig_spill = performance_comparison.get('original_estimated_spill_gb', 0)
+                            opt_spill = performance_comparison.get('optimized_estimated_spill_gb', 0)
+                            if orig_spill > 0 or opt_spill > 0:
+                                print(f"   💧 Estimated spill: {orig_spill:.2f}GB → {opt_spill:.2f}GB")
                         status_reason = "performance_degraded"
                     else:
                         print(f"⚠️ Attempt {attempt_num}: Clear improvement cannot be confirmed")
+                        print(f"   📊 Cost ratio: {current_cost_ratio:.3f}")
+                        print(f"   💾 Memory ratio: {current_memory_ratio:.3f}")
                         status_reason = "insufficient_improvement"
                 
                 # 悪化原因分析（改善不足の場合も実行）
@@ -13292,6 +13399,21 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         print(f"🥇 FINAL SELECTION: Attempt {best_result['attempt_num']} has been chosen as the optimized query")
         print(f"   📊 Cost ratio: {best_result['cost_ratio']:.3f} (Improvement: {(1-best_result['cost_ratio'])*100:.1f}%)")
         print(f"   💾 Memory ratio: {best_result['memory_ratio']:.3f} (Improvement: {(1-best_result['memory_ratio'])*100:.1f}%)")
+        
+        # スピル推定値の表示（利用可能な場合）
+        if 'performance_comparison' in best_result and best_result['performance_comparison']:
+            pc = best_result['performance_comparison']
+            orig_spill = pc.get('original_estimated_spill_gb', 0)
+            opt_spill = pc.get('optimized_estimated_spill_gb', 0)
+            if orig_spill > 0 or opt_spill > 0:
+                spill_improvement = orig_spill - opt_spill
+                if spill_improvement > 0:
+                    print(f"   💧 Spill improvement: {spill_improvement:.2f}GB reduction ({orig_spill:.2f}GB → {opt_spill:.2f}GB)")
+                elif spill_improvement < 0:
+                    print(f"   💧 Spill increase: {-spill_improvement:.2f}GB increase ({orig_spill:.2f}GB → {opt_spill:.2f}GB)")
+                else:
+                    print(f"   💧 Spill estimation: {orig_spill:.2f}GB (no change)")
+        
         print(f"   🎯 Selection reason: Best cost performance among all attempts")
         
         final_query = best_result['query']
