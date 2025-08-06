@@ -2801,18 +2801,22 @@ You are a Databricks Liquid Clustering expert. Please analyze the following SQL 
 2. 中規模テーブル（10-50GB）: フィルタ頻度と使用パターンに基づき判定  
 3. 小規模テーブル（10GB未満）: ❌ Liquid Clusteringは推奨しない
 
-【🚨 Important Understanding of Liquid Clustering Specifications】
-- **Column Order**: In Liquid Clustering, changing the order of clustering keys does not affect "node-level data locality"
-- **Actual Improvement Effects**: Improvements are in "scan efficiency", "file pruning effects", and "query performance"
-- **Technical Characteristics**: Column order within CLUSTER BY is arbitrary, and (col1, col2, col3) and (col3, col1, col2) have equivalent performance
+【🚨 CRITICAL: Liquid Clustering Column Order Rules】
+- **NEVER suggest column reordering**: Column order in Liquid Clustering is MEANINGLESS for performance
+- **NEVER generate reordering recommendations**: If current clustering exists, do NOT suggest changing the order
+- **Technical Fact**: (col1, col2) and (col2, col1) have IDENTICAL performance in Liquid Clustering
+- **Only suggest clustering IF**: Table currently has NO clustering OR completely different columns are needed
 
-【🚨 Absolutely Prohibited Incorrect Expressions】
-❌ "Improve data locality by changing order"
-❌ "Improve data locality with clustering key order"  
-❌ "Node-level data placement optimization through order changes"
-✅ "No specific improvement effect from order changes (Liquid Clustering specification)"
-✅ "Improvement in scan efficiency and file pruning effects"
-✅ "Performance improvement for WHERE clauses and JOIN conditions"
+【🚨 Absolutely Prohibited Actions】
+❌ NEVER suggest "現在のクラスタリングキーの順序を入れ替え" (reordering current clustering keys)
+❌ NEVER recommend changing (cs_item_sk, cs_sold_date_sk) to (cs_sold_date_sk, cs_item_sk)
+❌ NEVER suggest "order changes for better performance"
+❌ NEVER mention "日付カラムを先頭にすることで効率が向上" (date column first for efficiency)
+
+【✅ ONLY Acceptable Recommendations】
+✅ Keep existing clustering unchanged if columns are appropriate
+✅ Suggest completely new clustering columns only if current ones are suboptimal
+✅ State "現在のクラスタリングキーが最適なため変更不要" when current clustering is good
 
 簡潔で実践的な分析結果を日本語で提供してください。
 
@@ -2844,6 +2848,7 @@ OPTIMIZE [テーブル名] FULL;
 - [カラム2]: [使用パターンと重要度]
 - [以下同様...]
 - 🚨重要: クラスタリングキー順序変更はノードレベルのデータ局所性に影響しない（Liquid Clustering仕様）
+- 🚨注意: 既存のクラスタリングキーが適切な場合は順序変更を推奨しない
 - ✅改善効果: スキャン効率とファイルプルーニング効果の向上（順序無関係）
 
 **期待される改善効果**:
