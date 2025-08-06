@@ -12065,6 +12065,225 @@ FROM store_sales ss
         return f"LLM_ERROR: {error_msg}"
 
 
+def parse_partitioning_columns(columns_string):
+    """
+    パーティショニングカラム文字列を解析
+    
+    例:
+    - "r_uid#206698" → ['r_uid#206698']
+    - "column1, column2, column3" → ['column1', 'column2', 'column3']  
+    - "customer_id#12345, order_date#67890" → ['customer_id#12345', 'order_date#67890']
+    """
+    try:
+        # カンマで分割してトリム
+        raw_columns = [col.strip() for col in columns_string.split(',')]
+        
+        # 空文字列を除去
+        columns = [col for col in raw_columns if col]
+        
+        # カラム名のクリーンアップ（#ID部分を除去した版も作成）
+        clean_columns = []
+        for col in columns:
+            # #で分割して最初の部分のみ取得（カラム名のみ）
+            clean_name = col.split('#')[0] if '#' in col else col
+            clean_columns.append(clean_name)
+        
+        return {
+            'columns': columns,           # 元の形式 ['customer_id#12345', 'order_date#67890']
+            'clean_columns': clean_columns, # クリーン版 ['customer_id', 'order_date']
+            'count': len(columns),        # カラム数
+            'is_multi_column': len(columns) > 1
+        }
+        
+    except Exception as e:
+        return {
+            'columns': [columns_string],  # パース失敗時は元の文字列をそのまま
+            'clean_columns': [columns_string],
+            'count': 1,
+            'is_multi_column': False,
+            'parse_error': str(e)
+        }
+
+def estimate_spill_risk(metrics):
+    """
+    EXPLAIN COSTのメトリクスからスピルリスクを推定
+    """
+    try:
+        # メモリ使用量が多い + JOIN操作が多い = スピルリスク高
+        memory_pressure_factor = metrics['memory_estimates'] / (1024**3) if metrics['memory_estimates'] > 0 else 0  # GB単位
+        join_complexity_factor = metrics['join_operations'] * 0.1
+        data_volume_factor = metrics['total_size_bytes'] / (1024**4) if metrics['total_size_bytes'] > 0 else 0  # TB単位
+        partition_efficiency_factor = 1.0 / max(metrics['total_partitions'], 1) * 1000  # パーティション数が少ないとリスク増
+        
+        spill_risk_score = (
+            memory_pressure_factor * 0.4 +
+            join_complexity_factor * 0.3 +
+            data_volume_factor * 0.2 +
+            partition_efficiency_factor * 0.1
+        )
+        
+        return spill_risk_score
+        
+    except Exception:
+        return 0.0
+
+def safe_ratio(optimized_val, original_val):
+    """ゼロ除算を避けた安全な比率計算"""
+    if original_val == 0:
+        return 1.0 if optimized_val == 0 else (2.0 if optimized_val > 0 else 0.5)
+    return optimized_val / original_val
+
+def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
+    """
+    すべてのメトリクスを考慮した総合コスト比率を計算
+    """
+    # メトリクス重み設定（重要度に基づく）
+    weights = {
+        'data_processing_weight': 0.30,    # データサイズ + 行数
+        'operation_complexity_weight': 0.25, # スキャン + JOIN操作
+        'memory_efficiency_weight': 0.20,   # メモリ予測 + スピルリスク
+        'parallelism_weight': 0.15,         # シャッフルパーティション
+        'partitioning_efficiency_weight': 0.10  # ハッシュパーティション効率
+    }
+    
+    # 1. データ処理効率比率
+    data_size_ratio = safe_ratio(optimized_metrics['total_size_bytes'], 
+                                original_metrics['total_size_bytes'])
+    rows_ratio = safe_ratio(optimized_metrics['total_rows'], 
+                           original_metrics['total_rows'])
+    data_processing_ratio = (data_size_ratio + rows_ratio) / 2
+    
+    # 2. 操作複雑度比率
+    scan_ratio = safe_ratio(optimized_metrics['scan_operations'], 
+                           original_metrics['scan_operations'])
+    join_ratio = safe_ratio(optimized_metrics['join_operations'], 
+                           original_metrics['join_operations'])
+    operation_complexity_ratio = (scan_ratio + join_ratio) / 2
+    
+    # 3. メモリ効率比率（スピルリスク重視）
+    memory_ratio = safe_ratio(optimized_metrics['memory_estimates'], 
+                             original_metrics['memory_estimates'])
+    spill_risk_ratio = safe_ratio(optimized_metrics['spill_risk_score'], 
+                                 original_metrics['spill_risk_score'])
+    # スピルリスクが減ることは大きなメリットなので重み付け
+    memory_efficiency_ratio = (memory_ratio * 0.4 + spill_risk_ratio * 0.6)
+    
+    # 4. 並列処理効率比率
+    shuffle_ratio = safe_ratio(optimized_metrics['shuffle_partitions'], 
+                              original_metrics['shuffle_partitions'])
+    parallelism_ratio = shuffle_ratio
+    
+    # 5. パーティション効率比率
+    hash_partition_ratio = safe_ratio(optimized_metrics['hash_partitions'], 
+                                     original_metrics['hash_partitions'])
+    total_partition_ratio = safe_ratio(optimized_metrics['total_partitions'], 
+                                      original_metrics['total_partitions'])
+    partitioning_efficiency_ratio = (hash_partition_ratio * 0.7 + total_partition_ratio * 0.3)
+    
+    # 総合コスト比率（重み付き平均）
+    comprehensive_cost_ratio = (
+        data_processing_ratio * weights['data_processing_weight'] +
+        operation_complexity_ratio * weights['operation_complexity_weight'] +
+        memory_efficiency_ratio * weights['memory_efficiency_weight'] +
+        parallelism_ratio * weights['parallelism_weight'] +
+        partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']
+    )
+    
+    return {
+        'comprehensive_cost_ratio': comprehensive_cost_ratio,
+        'component_ratios': {
+            'data_processing': data_processing_ratio,
+            'operation_complexity': operation_complexity_ratio,
+            'memory_efficiency': memory_efficiency_ratio,
+            'parallelism': parallelism_ratio,
+            'partitioning_efficiency': partitioning_efficiency_ratio
+        },
+        'detailed_ratios': {
+            'data_size_ratio': data_size_ratio,
+            'rows_ratio': rows_ratio,
+            'scan_ratio': scan_ratio,
+            'join_ratio': join_ratio,
+            'memory_ratio': memory_ratio,
+            'spill_risk_ratio': spill_risk_ratio,
+            'shuffle_ratio': shuffle_ratio,
+            'hash_partition_ratio': hash_partition_ratio,
+            'total_partition_ratio': total_partition_ratio
+        }
+    }
+
+def comprehensive_performance_judgment(original_metrics, optimized_metrics):
+    """
+    すべてのメトリクスを考慮した総合パフォーマンス判定
+    """
+    cost_analysis = calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics)
+    comprehensive_ratio = cost_analysis['comprehensive_cost_ratio']
+    component_ratios = cost_analysis['component_ratios']
+    detailed_ratios = cost_analysis['detailed_ratios']
+    
+    # 厳格な閾値設定
+    COMPREHENSIVE_IMPROVEMENT_THRESHOLD = 0.99    # 1%以上の総合改善
+    COMPREHENSIVE_DEGRADATION_THRESHOLD = 1.01    # 1%以上の総合悪化
+    SUBSTANTIAL_IMPROVEMENT_THRESHOLD = 0.90      # 10%以上の大幅改善
+    
+    # スピルリスク特別判定（スピルリスクが大幅減少した場合は高評価）
+    spill_improvement_factor = 1.0
+    if detailed_ratios['spill_risk_ratio'] < 0.5:  # 50%以上スピルリスク減少
+        spill_improvement_factor = 0.95  # 5%の追加ボーナス
+    elif detailed_ratios['spill_risk_ratio'] > 2.0:  # スピルリスク倍増
+        spill_improvement_factor = 1.05  # 5%のペナルティ
+    
+    # スピル補正を適用した最終比率
+    final_comprehensive_ratio = comprehensive_ratio * spill_improvement_factor
+    
+    # 判定結果
+    judgment = {
+        'comprehensive_cost_ratio': final_comprehensive_ratio,
+        'original_comprehensive_ratio': comprehensive_ratio,
+        'spill_improvement_factor': spill_improvement_factor,
+        'component_analysis': component_ratios,
+        'detailed_analysis': detailed_ratios
+    }
+    
+    # 総合判定
+    if final_comprehensive_ratio < SUBSTANTIAL_IMPROVEMENT_THRESHOLD:
+        judgment.update({
+            'substantial_improvement_detected': True,
+            'significant_improvement_detected': True,
+            'performance_degradation_detected': False,
+            'is_optimization_beneficial': True,
+            'recommendation': 'use_optimized',
+            'improvement_level': 'substantial'
+        })
+    elif final_comprehensive_ratio < COMPREHENSIVE_IMPROVEMENT_THRESHOLD:
+        judgment.update({
+            'substantial_improvement_detected': False,
+            'significant_improvement_detected': True,
+            'performance_degradation_detected': False,
+            'is_optimization_beneficial': True,
+            'recommendation': 'use_optimized',
+            'improvement_level': 'significant'
+        })
+    elif final_comprehensive_ratio > COMPREHENSIVE_DEGRADATION_THRESHOLD:
+        judgment.update({
+            'substantial_improvement_detected': False,
+            'significant_improvement_detected': False,
+            'performance_degradation_detected': True,
+            'is_optimization_beneficial': False,
+            'recommendation': 'use_original',
+            'improvement_level': 'degraded'
+        })
+    else:
+        judgment.update({
+            'substantial_improvement_detected': False,
+            'significant_improvement_detected': False,
+            'performance_degradation_detected': False,
+            'is_optimization_beneficial': False,
+            'recommendation': 'use_original',
+            'improvement_level': 'equivalent'
+        })
+    
+    return judgment
+
 def compare_query_performance(original_explain_cost: str, optimized_explain_cost: str) -> Dict[str, Any]:
     """
     Compare EXPLAIN COST results to detect performance degradation
@@ -12124,7 +12343,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             comparison_result['details'] = [f"❌ {optimized_error} - reverting to original query"]
             return comparison_result
         
-        # コスト情報を抽出する関数
+        # コスト情報を抽出する関数（包括的メトリクス対応版）
         def extract_cost_metrics(explain_cost_text):
             metrics = {
                 'total_size_bytes': 0,
@@ -12132,7 +12351,11 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 'scan_operations': 0,
                 'join_operations': 0,
                 'memory_estimates': 0,
-                'shuffle_partitions': 0
+                'shuffle_partitions': 0,
+                'hash_partitions': 0,           # 新規追加：ハッシュパーティション数
+                'total_partitions': 0,          # 新規追加：総パーティション数
+                'partition_details': [],        # 新規追加：パーティション詳細情報
+                'spill_risk_score': 0          # 新規追加：スピルリスク推定値
             }
             
             # サイズとメモリ使用量を抽出
@@ -12166,17 +12389,111 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                     except:
                         continue
             
+            # メモリ予測値を抽出
+            memory_patterns = [
+                r'memorySize["\s]*[:=]\s*([0-9.]+)',
+                r'memory["\s]*[:=]\s*([0-9.]+)',
+                r'(\d+\.?\d*)\s*[KMG]?iB.*memory',
+                r'(\d+\.?\d*)\s*[KMG]?B.*memory'
+            ]
+            
+            for pattern in memory_patterns:
+                matches = re.findall(pattern, explain_cost_text, re.IGNORECASE)
+                for match in matches:
+                    try:
+                        memory_val = float(match)
+                        metrics['memory_estimates'] += memory_val
+                    except:
+                        continue
+            
             # スキャン・JOIN操作数をカウント
             metrics['scan_operations'] = len(re.findall(r'Scan|FileScan|TableScan', explain_cost_text, re.IGNORECASE))
             metrics['join_operations'] = len(re.findall(r'Join|HashJoin|SortMergeJoin', explain_cost_text, re.IGNORECASE))
             
-            # シャッフルパーティション数
+            # 従来のシャッフルパーティション数
             shuffle_matches = re.findall(r'partitions?["\s]*[:=]\s*([0-9]+)', explain_cost_text, re.IGNORECASE)
             for match in shuffle_matches:
                 try:
                     metrics['shuffle_partitions'] += int(match)
                 except:
                     continue
+            
+            # Hash Partitioning情報を抽出（複数カラム対応）
+            hash_partition_patterns = [
+                r'hashpartitioning\(([^)]+),\s*(\d+)\)',         # hashpartitioning(columns, count)
+                r'HashPartitioning\(([^)]+),\s*(\d+)\)',         # 大文字バリエーション
+            ]
+            
+            partition_details = []
+            total_hash_partitions = 0
+            
+            for pattern in hash_partition_patterns:
+                matches = re.finditer(pattern, explain_cost_text, re.IGNORECASE)
+                for match in matches:
+                    try:
+                        columns_part = match.group(1).strip()
+                        partition_count = int(match.group(2))
+                        total_hash_partitions += partition_count
+                        
+                        # カラム情報をパース
+                        parsed_columns = parse_partitioning_columns(columns_part)
+                        
+                        partition_details.append({
+                            'type': 'hash',
+                            'columns': parsed_columns['columns'],
+                            'column_count': parsed_columns['count'],
+                            'raw_columns': columns_part,
+                            'partition_count': partition_count,
+                            'full_expression': match.group(0)
+                        })
+                        
+                    except (ValueError, IndexError):
+                        continue
+            
+            # 他のパーティショニング方式も検索
+            other_partition_patterns = [
+                r'rangepartitioning\([^,]+,\s*(\d+)\)',          # rangepartitioning
+                r'roundrobinpartitioning\(\s*(\d+)\)',           # roundrobinpartitioning
+                r'singlepartition\(\)',                          # singlepartition
+            ]
+            
+            other_partitions = 0
+            for pattern in other_partition_patterns:
+                if 'singlepartition' in pattern:
+                    if re.search(pattern, explain_cost_text, re.IGNORECASE):
+                        other_partitions += 1
+                        partition_details.append({
+                            'type': 'single',
+                            'columns': [],
+                            'column_count': 0,
+                            'partition_count': 1,
+                            'full_expression': 'singlepartition()'
+                        })
+                else:
+                    matches = re.finditer(pattern, explain_cost_text, re.IGNORECASE)
+                    for match in matches:
+                        try:
+                            partition_count = int(match.group(1))
+                            other_partitions += partition_count
+                            
+                            partition_type = 'range' if 'range' in pattern else 'roundrobin'
+                            partition_details.append({
+                                'type': partition_type,
+                                'columns': ['extracted'],
+                                'column_count': 1,
+                                'partition_count': partition_count,
+                                'full_expression': match.group(0)
+                            })
+                            
+                        except (ValueError, IndexError):
+                            continue
+            
+            metrics['hash_partitions'] = total_hash_partitions
+            metrics['total_partitions'] = total_hash_partitions + other_partitions + metrics['shuffle_partitions']
+            metrics['partition_details'] = partition_details
+            
+            # スピルリスク推定
+            metrics['spill_risk_score'] = estimate_spill_risk(metrics)
                     
             return metrics
         
@@ -12184,116 +12501,88 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         original_metrics = extract_cost_metrics(original_explain_cost)
         optimized_metrics = extract_cost_metrics(optimized_explain_cost)
         
-        # パフォーマンス比較（値が0の場合は1として計算）
+        # 🚀 包括的パフォーマンス判定（すべてのメトリクスを考慮）
+        comprehensive_judgment = comprehensive_performance_judgment(original_metrics, optimized_metrics)
+        
+        # 従来の形式との互換性のため、基本比率も計算
         if original_metrics['total_size_bytes'] > 0:
-            comparison_result['total_cost_ratio'] = optimized_metrics['total_size_bytes'] / original_metrics['total_size_bytes']
+            comparison_result['total_cost_ratio'] = comprehensive_judgment['comprehensive_cost_ratio']
+        else:
+            comparison_result['total_cost_ratio'] = 1.0
         
         if original_metrics['total_rows'] > 0:
-            comparison_result['memory_usage_ratio'] = optimized_metrics['total_rows'] / original_metrics['total_rows']
-        
-        # 🚨 厳格な判定閾値（ユーザー要求：保守的アプローチ）
-        COST_DEGRADATION_THRESHOLD = 1.01   # 1%以上のコスト増加で元クエリ推奨（厳格化）
-        MEMORY_DEGRADATION_THRESHOLD = 1.01 # 1%以上のメモリ増加で元クエリ推奨（厳格化）
-        COST_IMPROVEMENT_THRESHOLD = 0.99   # 1%以上の削減で最適化クエリ推奨（厳格化）
-        MEMORY_IMPROVEMENT_THRESHOLD = 0.99 # 1%以上の削減で最適化クエリ推奨（厳格化）
-        
-        # 🚀 大幅改善の判定閾値（ユーザー要求：10%以上改善で試行終了）
-        SUBSTANTIAL_COST_IMPROVEMENT_THRESHOLD = 0.9   # 10%以上のコスト削減で大幅改善認定
-        SUBSTANTIAL_MEMORY_IMPROVEMENT_THRESHOLD = 0.9 # 10%以上のメモリ削減で大幅改善認定
-        
-        # パフォーマンス悪化検出（マージンなしで明確な判定）
-        degradation_factors = []
-        
-        # 🎯 明確な悪化判定（境界値の曖昧さを排除）
-        if comparison_result['total_cost_ratio'] > COST_DEGRADATION_THRESHOLD:
-            degradation_factors.append(f"Total execution cost degradation: {comparison_result['total_cost_ratio']:.2f}x (threshold: {COST_DEGRADATION_THRESHOLD:.2f})")
-            
-        if comparison_result['memory_usage_ratio'] > MEMORY_DEGRADATION_THRESHOLD:
-            degradation_factors.append(f"Memory usage degradation: {comparison_result['memory_usage_ratio']:.2f}x (threshold: {MEMORY_DEGRADATION_THRESHOLD:.2f})")
-        
-        # Check for significant JOIN operations count increase
-        if (optimized_metrics['join_operations'] > original_metrics['join_operations'] * 1.5):
-            degradation_factors.append(f"JOIN operations count increase: {original_metrics['join_operations']} → {optimized_metrics['join_operations']}")
-        
-        # 悪化判定
-        if degradation_factors:
-            comparison_result['performance_degradation_detected'] = True
-            comparison_result['is_optimization_beneficial'] = False
-            comparison_result['recommendation'] = 'use_original'
-            comparison_result['details'] = degradation_factors
+            comparison_result['memory_usage_ratio'] = comprehensive_judgment['detailed_analysis']['memory_ratio']
         else:
-            # 悪化ではないが、改善/同等の詳細判定
-            performance_factors = []
-            
-            # 🚨 厳格な詳細判定（ユーザー要求：保守的アプローチ）
-            # 実行コストの詳細判定
-            if comparison_result['total_cost_ratio'] < COST_IMPROVEMENT_THRESHOLD:
-                performance_factors.append(f"Execution cost improvement: {(1-comparison_result['total_cost_ratio'])*100:.1f}% reduction")
-            elif comparison_result['total_cost_ratio'] > COST_DEGRADATION_THRESHOLD:  # 1%以上の増加で即座に悪化判定
-                cost_increase_pct = (comparison_result['total_cost_ratio']-1)*100
-                performance_factors.append(f"Execution cost increase: {cost_increase_pct:.1f}% increase (original query recommended)")
+            comparison_result['memory_usage_ratio'] = 1.0
+        
+        # 包括的判定結果を統合
+        comparison_result.update({
+            'significant_improvement_detected': comprehensive_judgment['significant_improvement_detected'],
+            'substantial_improvement_detected': comprehensive_judgment['substantial_improvement_detected'],
+            'performance_degradation_detected': comprehensive_judgment['performance_degradation_detected'],
+            'is_optimization_beneficial': comprehensive_judgment['is_optimization_beneficial'],
+            'recommendation': comprehensive_judgment['recommendation'],
+            'comprehensive_analysis': comprehensive_judgment,  # 詳細分析結果を保存
+        })
+        
+        # 🚀 包括的判定結果の詳細情報を生成
+        detailed_factors = []
+        comp_analysis = comprehensive_judgment['comprehensive_analysis']
+        
+        # 総合改善レベルの表示
+        improvement_level = comprehensive_judgment['improvement_level']
+        comprehensive_ratio = comprehensive_judgment['comprehensive_cost_ratio']
+        improvement_pct = (1 - comprehensive_ratio) * 100
+        
+        if improvement_level == 'substantial':
+            detailed_factors.append(f"🚀 Substantial performance improvement detected ({improvement_pct:.1f}% comprehensive improvement - optimized query recommended)")
+        elif improvement_level == 'significant':
+            detailed_factors.append(f"✅ Significant performance improvement detected ({improvement_pct:.1f}% comprehensive improvement - optimized query recommended)")
+        elif improvement_level == 'degraded':
+            degradation_pct = (comprehensive_ratio - 1) * 100
+            detailed_factors.append(f"❌ Performance degradation detected ({degradation_pct:.1f}% comprehensive degradation - original query recommended)")
+        else:
+            detailed_factors.append(f"➖ Performance equivalent ({improvement_pct:.1f}% change - no clear improvement)")
+        
+        # 個別メトリクス詳細の追加
+        detailed_ratios = comp_analysis['detailed_analysis']
+        
+        # データ処理効率
+        data_size_improvement = (1 - detailed_ratios['data_size_ratio']) * 100
+        if abs(data_size_improvement) > 1:
+            detailed_factors.append(f"📊 Data processing: {data_size_improvement:+.1f}% (size: {detailed_ratios['data_size_ratio']:.3f}x)")
+        
+        # JOIN操作効率
+        join_improvement = (1 - detailed_ratios['join_ratio']) * 100  
+        if abs(join_improvement) > 1:
+            detailed_factors.append(f"🔗 JOIN operations: {join_improvement:+.1f}% (ratio: {detailed_ratios['join_ratio']:.3f}x)")
+        
+        # メモリ効率
+        memory_improvement = (1 - detailed_ratios['memory_ratio']) * 100
+        if abs(memory_improvement) > 1:
+            detailed_factors.append(f"💾 Memory efficiency: {memory_improvement:+.1f}% (ratio: {detailed_ratios['memory_ratio']:.3f}x)")
+        
+        # スピルリスク
+        spill_risk_improvement = (1 - detailed_ratios['spill_risk_ratio']) * 100
+        if abs(spill_risk_improvement) > 5:
+            detailed_factors.append(f"⚡ Spill risk: {spill_risk_improvement:+.1f}% (ratio: {detailed_ratios['spill_risk_ratio']:.3f}x)")
+        
+        # パーティション効率
+        if 'hash_partition_ratio' in detailed_ratios:
+            hash_partition_improvement = (1 - detailed_ratios['hash_partition_ratio']) * 100
+            if abs(hash_partition_improvement) > 1:
+                detailed_factors.append(f"🎯 Hash partitioning: {hash_partition_improvement:+.1f}% (ratio: {detailed_ratios['hash_partition_ratio']:.3f}x)")
+        
+        # スピル改善ボーナス/ペナルティの表示
+        spill_factor = comprehensive_judgment.get('spill_improvement_factor', 1.0)
+        if spill_factor != 1.0:
+            bonus_pct = (1 - spill_factor) * 100
+            if spill_factor < 1.0:
+                detailed_factors.append(f"🎁 Spill risk reduction bonus: {bonus_pct:.1f}% additional improvement")
             else:
-                performance_factors.append(f"Execution cost equivalent: {comparison_result['total_cost_ratio']:.2f}x (no change)")
-                
-            # メモリ使用量の詳細判定
-            if comparison_result['memory_usage_ratio'] < MEMORY_IMPROVEMENT_THRESHOLD:
-                performance_factors.append(f"Memory usage improvement: {(1-comparison_result['memory_usage_ratio'])*100:.1f}% reduction")
-            elif comparison_result['memory_usage_ratio'] > MEMORY_DEGRADATION_THRESHOLD:  # 1%以上の増加で即座に悪化判定
-                memory_increase_pct = (comparison_result['memory_usage_ratio']-1)*100
-                performance_factors.append(f"Memory usage increase: {memory_increase_pct:.1f}% increase (original query recommended)")
-            else:
-                performance_factors.append(f"Memory usage equivalent: {comparison_result['memory_usage_ratio']:.2f}x (no change)")
-            
-            # JOIN効率化チェック
-            if optimized_metrics['join_operations'] < original_metrics['join_operations']:
-                performance_factors.append(f"JOIN optimization: {original_metrics['join_operations']} → {optimized_metrics['join_operations']} operations")
-            elif optimized_metrics['join_operations'] > original_metrics['join_operations']:
-                performance_factors.append(f"JOIN operations increase: {original_metrics['join_operations']} → {optimized_metrics['join_operations']} operations (minor)")
-            
-            # 🚨 厳格な総合判定（ユーザー要求：明確な改善のみ成功）
-            has_improvement = any("improvement" in factor for factor in performance_factors)
-            has_cost_increase = any("cost increase" in factor for factor in performance_factors)
-            has_memory_increase = any("memory increase" in factor for factor in performance_factors)
-            
-            # 🚨 明確な改善検出（1%以上の改善のみ）
-            has_significant_improvement = (
-                comparison_result['total_cost_ratio'] < COST_IMPROVEMENT_THRESHOLD or
-                comparison_result['memory_usage_ratio'] < MEMORY_IMPROVEMENT_THRESHOLD
-            )
-            
-            # 🚀 大幅改善検出（10%以上の改善）
-            has_substantial_improvement = (
-                comparison_result['total_cost_ratio'] < SUBSTANTIAL_COST_IMPROVEMENT_THRESHOLD or
-                comparison_result['memory_usage_ratio'] < SUBSTANTIAL_MEMORY_IMPROVEMENT_THRESHOLD
-            )
-            
-            # 🚨 厳格判定：1%以上の増加でも元クエリ推奨
-            if has_cost_increase or has_memory_increase:
-                performance_factors.insert(0, "❌ Performance degradation detected (original query recommended)")
-                # 🚨 増加検出時は推奨も元クエリに変更
-                comparison_result['performance_degradation_detected'] = True
-                comparison_result['is_optimization_beneficial'] = False  
-                comparison_result['recommendation'] = 'use_original'
-                comparison_result['significant_improvement_detected'] = False
-                comparison_result['substantial_improvement_detected'] = False
-            elif has_substantial_improvement:
-                # 🚀 大幅改善（10%以上）を検出
-                cost_reduction = (1 - comparison_result['total_cost_ratio']) * 100
-                memory_reduction = (1 - comparison_result['memory_usage_ratio']) * 100
-                max_reduction = max(cost_reduction, memory_reduction)
-                performance_factors.insert(0, f"🚀 Significant performance improvement confirmed (max {max_reduction:.1f}% reduction - optimized query recommended)")
-                comparison_result['significant_improvement_detected'] = True
-                comparison_result['substantial_improvement_detected'] = True
-            elif has_significant_improvement:
-                performance_factors.insert(0, "✅ Clear performance improvement confirmed (optimized query recommended)")
-                comparison_result['significant_improvement_detected'] = True
-                comparison_result['substantial_improvement_detected'] = False
-            else:
-                performance_factors.insert(0, "➖ Performance equivalent (no clear improvement)")
-                comparison_result['significant_improvement_detected'] = False
-                comparison_result['substantial_improvement_detected'] = False
-            
-            comparison_result['details'] = performance_factors
+                detailed_factors.append(f"⚠️ Spill risk increase penalty: {-bonus_pct:.1f}% performance impact")
+        
+        comparison_result['details'] = detailed_factors
         
     except Exception as e:
         # エラー時は安全側に倒して元クエリを推奨
