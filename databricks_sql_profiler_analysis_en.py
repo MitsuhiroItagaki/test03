@@ -190,6 +190,42 @@ def save_optimization_points_summary(optimization_point: str) -> None:
     except Exception as e:
         print(f"⚠️ Failed to save optimization points: {str(e)}")
 
+def save_trial_log(optimization_point: str) -> None:
+    """
+    個別試行ログを専用ファイルに追記
+    
+    Args:
+        optimization_point: 抽出された最適化ポイント（Trial X (type): points形式）
+    """
+    try:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        trial_log_filename = "trial_logs.txt"
+        
+        # Check if file exists and has header
+        try:
+            with open(trial_log_filename, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+            file_exists_with_content = bool(content)
+        except FileNotFoundError:
+            file_exists_with_content = False
+        
+        # Create header if file doesn't exist or is empty
+        if not file_exists_with_content:
+            with open(trial_log_filename, 'w', encoding='utf-8') as f:
+                f.write("Trial Logs - SQL Query Optimization\n")
+                f.write("=====================================\n\n")
+                f.write("Individual trial results from optimization attempts:\n\n")
+        
+        # Append the trial log entry
+        with open(trial_log_filename, 'a', encoding='utf-8') as f:
+            f.write(f"[{timestamp}] {optimization_point}\n")
+        
+        print(f"📋 Trial log saved: {optimization_point}")
+        
+    except Exception as e:
+        print(f"⚠️ Failed to save trial log: {str(e)}")
+
 def load_optimization_points_summary() -> str:
     """
     保存された最適化ポイント要約を読み込み
@@ -13226,7 +13262,8 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                             # 🎯 最適化ポイント抽出・保存（EXPLAIN成功時のみ）
                             try:
                                 optimization_point = extract_optimization_points_from_query(current_query, "error_correction", attempt_num)
-                                save_optimization_points_summary(optimization_point)
+                                save_trial_log(optimization_point)  # Log individual trial
+                                save_optimization_points_summary(optimization_point)  # Keep existing functionality
                             except Exception as e:
                                 print(f"⚠️ Optimization points extraction failed: {str(e)}")
                         else:
@@ -14768,7 +14805,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
                     query_for_extraction = locals().get('optimized_query', locals().get('final_query', ''))
                     if query_for_extraction:
                         optimization_point = extract_optimization_points_from_query(query_for_extraction, "single_optimization", 1)
-                        save_optimization_points_summary(optimization_point)
+                        save_trial_log(optimization_point)  # Log individual trial
+                        save_optimization_points_summary(optimization_point)  # Keep existing functionality
                 except Exception as e:
                     print(f"⚠️ Optimization points extraction failed: {str(e)}")
                 
