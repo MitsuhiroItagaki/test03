@@ -13086,6 +13086,14 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                             'stage2': stage2_result,
                             'stage3': stage3_result
                         }
+                    },
+                    # 互換性のため detailed_analysis キーも追加
+                    'detailed_analysis': {
+                        'memory_ratio': 1.0,
+                        'cpu_ratio': 1.0,
+                        'io_ratio': 1.0,
+                        'fallback_mode': True,
+                        'note': 'All analysis stages failed - using safe fallback values'
                     }
                 }
         
@@ -13107,7 +13115,13 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             comparison_result['total_cost_ratio'] = 1.0
         
         if original_metrics['total_rows'] > 0:
-            comparison_result['memory_usage_ratio'] = comprehensive_judgment['detailed_analysis']['memory_ratio']
+            # detailed_analysis キーが存在するかチェック（フォールバック処理対応）
+            if 'detailed_analysis' in comprehensive_judgment:
+                comparison_result['memory_usage_ratio'] = comprehensive_judgment['detailed_analysis']['memory_ratio']
+            else:
+                # フォールバック時は安全な値を使用
+                print("⚠️  Warning: detailed_analysis not found in comprehensive_judgment, using fallback memory_ratio=1.0")
+                comparison_result['memory_usage_ratio'] = 1.0
         else:
             comparison_result['memory_usage_ratio'] = 1.0
         
