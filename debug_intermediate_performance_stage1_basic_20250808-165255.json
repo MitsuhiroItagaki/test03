@@ -1,0 +1,8 @@
+{
+  "stage": "basic_comparison",
+  "success": true,
+  "size_ratio": 1.0,
+  "row_ratio": 0.0,
+  "basic_ratio": 0.5,
+  "recommendation": "use_optimized"
+}
