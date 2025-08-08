@@ -12543,11 +12543,12 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             
             return {
                 'comprehensive_cost_ratio': basic_ratio,
-                'performance_degradation_detected': basic_ratio > 1.01,
-                'significant_improvement_detected': basic_ratio < 0.99,
-                'substantial_improvement_detected': basic_ratio < 0.90,
-                'is_optimization_beneficial': basic_ratio <= 1.01,
-                'recommendation': 'use_original' if basic_ratio > 1.01 else 'use_optimized',
+                'performance_degradation_detected': basic_ratio > 1.05,
+                'significant_improvement_detected': basic_ratio < 0.90,
+                'substantial_improvement_detected': basic_ratio < 0.80,
+                'minor_improvement_detected': basic_ratio < 0.95,
+                'is_optimization_beneficial': basic_ratio <= 1.05,
+                'recommendation': 'use_original' if basic_ratio > 1.05 else 'use_optimized',
                 'improvement_level': 'FALLBACK_BASIC_COMPARISON',
                 'judgment_detail': f'Basic comparison due to error: {str(e)}',
                 'spill_improvement_factor': 1.0,
@@ -12596,20 +12597,22 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     component_ratios = cost_analysis['component_ratios']
     detailed_ratios = cost_analysis['detailed_ratios']
     
-    # 厳格な閾値設定
-    COMPREHENSIVE_IMPROVEMENT_THRESHOLD = 0.99    # 1%以上の総合改善
-    COMPREHENSIVE_DEGRADATION_THRESHOLD = 1.01    # 1%以上の総合悪化
-    SUBSTANTIAL_IMPROVEMENT_THRESHOLD = 0.90      # 10%以上の大幅改善
+    # 保守的な閾値設定（測定誤差とリスクを考慮）
+    COMPREHENSIVE_IMPROVEMENT_THRESHOLD = 0.90    # 10%以上の重要改善
+    COMPREHENSIVE_DEGRADATION_THRESHOLD = 1.05    # 5%以上の総合悪化
+    SUBSTANTIAL_IMPROVEMENT_THRESHOLD = 0.80      # 20%以上の大幅改善
+    MINOR_IMPROVEMENT_THRESHOLD = 0.95            # 5%以上の軽微改善
     
     print("\n" + "="*80)
     print("🎯 パフォーマンス改善レベル判定")
     print("="*80)
     
-    print(f"\n📏 判定閾値:")
-    print(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)")
-    print(f"   有意改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (1%以上改善)")  
-    print(f"   等価性能範囲       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±1%以内)")
-    print(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (1%以上悪化)")
+    print(f"\n📏 判定閾値 (保守的アプローチ):")
+    print(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)")
+    print(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)")
+    print(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)")  
+    print(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)")
+    print(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)")
     
     # スピルリスク特別判定（スピルリスクが大幅減少した場合は高評価）
     spill_improvement_factor = 1.0
@@ -12645,28 +12648,42 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         'detailed_analysis': detailed_ratios
     }
     
-    # 総合判定
+    # 総合判定（保守的アプローチ）
     if final_comprehensive_ratio < SUBSTANTIAL_IMPROVEMENT_THRESHOLD:
         judgment_level = "🚀 大幅改善 (SUBSTANTIAL)"
         recommendation_text = "最適化クエリを強く推奨"
         judgment.update({
             'substantial_improvement_detected': True,
             'significant_improvement_detected': True,
+            'minor_improvement_detected': True,
             'performance_degradation_detected': False,
             'is_optimization_beneficial': True,
             'recommendation': 'use_optimized',
             'improvement_level': 'substantial'
         })
     elif final_comprehensive_ratio < COMPREHENSIVE_IMPROVEMENT_THRESHOLD:
-        judgment_level = "✅ 有意改善 (SIGNIFICANT)"
+        judgment_level = "✅ 重要改善 (SIGNIFICANT)"
         recommendation_text = "最適化クエリを推奨"
         judgment.update({
             'substantial_improvement_detected': False,
             'significant_improvement_detected': True,
+            'minor_improvement_detected': True,
             'performance_degradation_detected': False,
             'is_optimization_beneficial': True,
             'recommendation': 'use_optimized',
             'improvement_level': 'significant'
+        })
+    elif final_comprehensive_ratio < MINOR_IMPROVEMENT_THRESHOLD:
+        judgment_level = "📈 軽微改善 (MINOR)"
+        recommendation_text = "最適化クエリを慎重に検討"
+        judgment.update({
+            'substantial_improvement_detected': False,
+            'significant_improvement_detected': False,
+            'minor_improvement_detected': True,
+            'performance_degradation_detected': False,
+            'is_optimization_beneficial': True,
+            'recommendation': 'use_optimized',
+            'improvement_level': 'minor'
         })
     elif final_comprehensive_ratio > COMPREHENSIVE_DEGRADATION_THRESHOLD:
         judgment_level = "❌ パフォーマンス悪化 (DEGRADED)"
@@ -12674,6 +12691,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         judgment.update({
             'substantial_improvement_detected': False,
             'significant_improvement_detected': False,
+            'minor_improvement_detected': False,
             'performance_degradation_detected': True,
             'is_optimization_beneficial': False,
             'recommendation': 'use_original',
@@ -12689,6 +12707,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             judgment.update({
                 'substantial_improvement_detected': False,
                 'significant_improvement_detected': True,  # JOIN改善として扱う
+                'minor_improvement_detected': True,
                 'performance_degradation_detected': False,
                 'is_optimization_beneficial': True,
                 'recommendation': 'use_optimized',
@@ -12700,6 +12719,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             judgment.update({
                 'substantial_improvement_detected': False,
                 'significant_improvement_detected': False,
+                'minor_improvement_detected': False,
                 'performance_degradation_detected': False,
                 'is_optimization_beneficial': False,
                 'recommendation': 'use_original',
@@ -13050,7 +13070,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                     'size_ratio': basic_size_ratio,
                     'row_ratio': basic_row_ratio,
                     'basic_ratio': (basic_size_ratio + basic_row_ratio) / 2,
-                    'recommendation': 'use_original' if (basic_size_ratio + basic_row_ratio) / 2 > 1.01 else 'use_optimized'
+                    'recommendation': 'use_original' if (basic_size_ratio + basic_row_ratio) / 2 > 1.05 else 'use_optimized'
                 }
                 print(f"✅ Stage 1 completed: ratio={stage1_result['basic_ratio']:.4f}")
                 save_intermediate_results('stage1_basic', stage1_result)
@@ -13127,11 +13147,12 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 
                 return {
                     'comprehensive_cost_ratio': combined_ratio,
-                    'performance_degradation_detected': combined_ratio > 1.01,
-                    'significant_improvement_detected': combined_ratio < 0.99,
-                    'substantial_improvement_detected': combined_ratio < 0.90,
-                    'is_optimization_beneficial': combined_ratio <= 1.01,
-                    'recommendation': 'use_original' if combined_ratio > 1.01 else 'use_optimized',
+                    'performance_degradation_detected': combined_ratio > 1.05,
+                    'significant_improvement_detected': combined_ratio < 0.90,
+                    'substantial_improvement_detected': combined_ratio < 0.80,
+                    'minor_improvement_detected': combined_ratio < 0.95,
+                    'is_optimization_beneficial': combined_ratio <= 1.05,
+                    'recommendation': 'use_original' if combined_ratio > 1.05 else 'use_optimized',
                     'improvement_level': 'STAGE_1_2_COMBINED',
                     'judgment_detail': f'Combined basic and detailed analysis: ratio={combined_ratio:.4f}',
                     'spill_improvement_factor': 1.0,
@@ -13151,10 +13172,11 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 print("🔄 Using Stage 1 basic judgment only")
                 return {
                     'comprehensive_cost_ratio': stage1_result['basic_ratio'],
-                    'performance_degradation_detected': stage1_result['basic_ratio'] > 1.01,
-                    'significant_improvement_detected': stage1_result['basic_ratio'] < 0.99,
-                    'substantial_improvement_detected': stage1_result['basic_ratio'] < 0.90,
-                    'is_optimization_beneficial': stage1_result['basic_ratio'] <= 1.01,
+                    'performance_degradation_detected': stage1_result['basic_ratio'] > 1.05,
+                    'significant_improvement_detected': stage1_result['basic_ratio'] < 0.90,
+                    'substantial_improvement_detected': stage1_result['basic_ratio'] < 0.80,
+                    'minor_improvement_detected': stage1_result['basic_ratio'] < 0.95,
+                    'is_optimization_beneficial': stage1_result['basic_ratio'] <= 1.05,
                     'recommendation': stage1_result['recommendation'],
                     'improvement_level': 'STAGE_1_BASIC_ONLY',
                     'judgment_detail': f'Basic analysis only: ratio={stage1_result["basic_ratio"]:.4f}',
