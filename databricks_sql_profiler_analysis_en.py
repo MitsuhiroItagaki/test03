@@ -12258,9 +12258,12 @@ def estimate_spill_risk(metrics):
         return 0.0
 
 def safe_ratio(optimized_val, original_val):
-    """ゼロ除算を避けた安全な比率計算"""
-    if original_val == 0:
-        return 1.0 if optimized_val == 0 else (2.0 if optimized_val > 0 else 0.5)
+    """ゼロ除算/極小除算を避けた安全な比率計算"""
+    EPS = 1e-6
+    if abs(original_val) < EPS:
+        if abs(optimized_val) < EPS:
+            return 1.0
+        return 2.0 if optimized_val > 0 else 0.5
     return optimized_val / original_val
 
 def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
@@ -12293,7 +12296,15 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
                                 original_metrics['total_size_bytes'])
     rows_ratio = safe_ratio(optimized_metrics['total_rows'], 
                            original_metrics['total_rows'])
-    data_processing_ratio = (data_size_ratio + rows_ratio) / 2
+    data_processing_ratio_raw = (data_size_ratio + rows_ratio) / 2
+    def _clamp_ratio(v, lo=0.2, hi=5.0):
+        try:
+            if v != v:
+                return 1.0
+        except Exception:
+            return 1.0
+        return max(lo, min(hi, v))
+    data_processing_ratio = _clamp_ratio(data_processing_ratio_raw)
     
     print(f"\n📊 1. データ処理効率 (重み: {weights['data_processing_weight']:.2%})")
     print(f"   データサイズ比率   : {data_size_ratio:.4f} ({(data_size_ratio-1)*100:+.1f}%)")
@@ -12306,7 +12317,8 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
                            original_metrics['scan_operations'])
     join_ratio = safe_ratio(optimized_metrics['join_operations'], 
                            original_metrics['join_operations'])
-    operation_complexity_ratio = (scan_ratio + join_ratio) / 2
+    operation_complexity_ratio_raw = (scan_ratio + join_ratio) / 2
+    operation_complexity_ratio = _clamp_ratio(operation_complexity_ratio_raw)
     
     print(f"\n🔄 2. 操作複雑度 (重み: {weights['operation_complexity_weight']:.2%})")
     print(f"   スキャン操作比率   : {scan_ratio:.4f} ({(scan_ratio-1)*100:+.1f}%)")
@@ -12320,7 +12332,8 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     spill_risk_ratio = safe_ratio(optimized_metrics['spill_risk_score'], 
                                  original_metrics['spill_risk_score'])
     # スピルリスクが減ることは大きなメリットなので重み付け
-    memory_efficiency_ratio = (memory_ratio * 0.4 + spill_risk_ratio * 0.6)
+    memory_efficiency_ratio_raw = (memory_ratio * 0.4 + spill_risk_ratio * 0.6)
+    memory_efficiency_ratio = _clamp_ratio(memory_efficiency_ratio_raw, lo=0.2, hi=3.0)
     
     print(f"\n💾 3. メモリ効率性 (重み: {weights['memory_efficiency_weight']:.2%})")
     print(f"   メモリ予測比率     : {memory_ratio:.4f} ({(memory_ratio-1)*100:+.1f}%) - 40%重み")
@@ -12337,7 +12350,8 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
                                         original_metrics.get('spill_probability', 0))
     
     # スピル関連の総合効率（スピルが減ることは大きなメリット）
-    spill_management_ratio = (estimated_spill_ratio * 0.4 + memory_pressure_ratio * 0.3 + spill_probability_ratio * 0.3)
+    spill_management_ratio_raw = (estimated_spill_ratio * 0.4 + memory_pressure_ratio * 0.3 + spill_probability_ratio * 0.3)
+    spill_management_ratio = _clamp_ratio(spill_management_ratio_raw, lo=0.2, hi=3.0)
     
     print(f"\n🚨 4. スピル管理効率 (重み: {weights['spill_management_weight']:.2%})")
     print(f"   推定スピル比率     : {estimated_spill_ratio:.4f} ({(estimated_spill_ratio-1)*100:+.1f}%) - 40%重み")
@@ -12349,7 +12363,8 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     # 5. 並列処理効率比率
     shuffle_ratio = safe_ratio(optimized_metrics['shuffle_partitions'], 
                               original_metrics['shuffle_partitions'])
-    parallelism_ratio = shuffle_ratio
+    parallelism_ratio_raw = shuffle_ratio
+    parallelism_ratio = _clamp_ratio(parallelism_ratio_raw)
     
     print(f"\n⚡ 5. 並列処理効率 (重み: {weights['parallelism_weight']:.2%})")
     print(f"   シャッフル比率     : {shuffle_ratio:.4f} ({(shuffle_ratio-1)*100:+.1f}%)")
@@ -12361,7 +12376,8 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
                                      original_metrics['hash_partitions'])
     total_partition_ratio = safe_ratio(optimized_metrics['total_partitions'], 
                                       original_metrics['total_partitions'])
-    partitioning_efficiency_ratio = (hash_partition_ratio * 0.7 + total_partition_ratio * 0.3)
+    partitioning_efficiency_ratio_raw = (hash_partition_ratio * 0.7 + total_partition_ratio * 0.3)
+    partitioning_efficiency_ratio = _clamp_ratio(partitioning_efficiency_ratio_raw)
     
     print(f"\n🔧 6. パーティション効率 (重み: {weights['partitioning_efficiency_weight']:.2%})")
     print(f"   ハッシュ分割比率   : {hash_partition_ratio:.4f} ({(hash_partition_ratio-1)*100:+.1f}%) - 70%重み")
@@ -12618,10 +12634,12 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     spill_improvement_factor = 1.0
     spill_bonus_text = ""
     
-    if detailed_ratios['spill_risk_ratio'] < 0.5:  # 50%以上スピルリスク減少
+    # クランプしたスピル比率で判定の過大/過小評価を防ぐ
+    effective_spill_risk_ratio = max(0.2, min(3.0, detailed_ratios['spill_risk_ratio']))
+    if effective_spill_risk_ratio < 0.5:  # 50%以上スピルリスク減少
         spill_improvement_factor = 0.95  # 5%の追加ボーナス
         spill_bonus_text = "🚀 スピルリスク大幅減少ボーナス適用 (-5%)"
-    elif detailed_ratios['spill_risk_ratio'] > 2.0:  # スピルリスク倍増
+    elif effective_spill_risk_ratio > 2.0:  # スピルリスク倍増
         spill_improvement_factor = 1.05  # 5%のペナルティ
         spill_bonus_text = "⚠️ スピルリスク増加ペナルティ適用 (+5%)"
     else:
@@ -12868,54 +12886,100 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 'memory_pressure_score': 0.0,   # 新規追加：メモリ圧迫スコア
                 'exchange_count': 0             # 新規追加：Exchange/Shuffle操作数
             }
-            
-            # サイズとメモリ使用量を抽出
+
+            import re
+
+            # ユニット付きサイズをバイトに変換
+            def parse_size_to_bytes(value_str, unit_str):
+                try:
+                    val = float(value_str)
+                except Exception:
+                    return 0
+                unit = (unit_str or '').lower()
+                if unit in ('b', ''):
+                    return int(val)
+                if unit in ('kb', 'kib'):
+                    return int(val * 1024)
+                if unit in ('mb', 'mib'):
+                    return int(val * 1024**2)
+                if unit in ('gb', 'gib'):
+                    return int(val * 1024**3)
+                if unit in ('tb', 'tib'):
+                    return int(val * 1024**4)
+                return int(val)
+
+            # Optimized Logical Planの統計から最大サイズ/行数を抽出（重複加算防止）
+            max_size_bytes = 0
+            max_row_count = 0.0
+            stats_iter = re.finditer(r"Statistics\(sizeInBytes=\s*([0-9.]+)\s*([KMGT]?i?B),\s*rowCount=\s*([0-9.Ee+\-]+)", explain_cost_text)
+            for m in stats_iter:
+                size_bytes = parse_size_to_bytes(m.group(1), m.group(2))
+                try:
+                    rows_val = float(m.group(3))
+                except Exception:
+                    rows_val = 0.0
+                if size_bytes > max_size_bytes:
+                    max_size_bytes = size_bytes
+                if rows_val > max_row_count:
+                    max_row_count = rows_val
+
+            # 旧来のサイズ抽出（バックアップ）: 数字のみ抽出した合計だと過大なので使用は最小限
+            total_size_bytes_sum = 0
             size_patterns = [
                 r'size_bytes["\s]*[:=]\s*([0-9.]+)',
-                r'sizeInBytes["\s]*[:=]\s*([0-9.]+)',
-                r'(\d+\.?\d*)\s*[KMG]?iB',
-                r'(\d+\.?\d*)\s*[KMG]?B'
+                r'sizeInBytes["\s]*[:=]\s*([0-9.]+)'
             ]
-            
             for pattern in size_patterns:
                 matches = re.findall(pattern, explain_cost_text, re.IGNORECASE)
                 for match in matches:
                     try:
-                        size_val = float(match)
-                        metrics['total_size_bytes'] += size_val
-                    except:
+                        total_size_bytes_sum += float(match)
+                    except Exception:
                         continue
-            
-            # 行数を抽出
+
+            # 行数を抽出（バックアップ）
+            total_rows_max_fallback = 0
             row_patterns = [
+                r'rowCount["\s]*[:=]\s*([0-9.Ee+\-]+)',
                 r'rows["\s]*[:=]\s*([0-9]+)',
                 r'numRows["\s]*[:=]\s*([0-9]+)'
             ]
-            
             for pattern in row_patterns:
                 matches = re.findall(pattern, explain_cost_text, re.IGNORECASE)
                 for match in matches:
                     try:
-                        metrics['total_rows'] += int(match)
-                    except:
+                        total_rows_max_fallback = max(total_rows_max_fallback, float(match))
+                    except Exception:
                         continue
-            
-            # メモリ予測値を抽出
+
+            # 決定値の設定（優先度: 統計の最大値 > フォールバック）
+            if max_size_bytes > 0:
+                metrics['total_size_bytes'] = max_size_bytes
+            else:
+                metrics['total_size_bytes'] = int(total_size_bytes_sum)
+
+            if max_row_count > 0:
+                metrics['total_rows'] = int(max_row_count)
+            else:
+                metrics['total_rows'] = int(total_rows_max_fallback)
+
+            # メモリ予測値（保守的に最大推定値を利用）
             memory_patterns = [
                 r'memorySize["\s]*[:=]\s*([0-9.]+)',
-                r'memory["\s]*[:=]\s*([0-9.]+)',
-                r'(\d+\.?\d*)\s*[KMG]?iB.*memory',
-                r'(\d+\.?\d*)\s*[KMG]?B.*memory'
+                r'memory["\s]*[:=]\s*([0-9.]+)'
             ]
-            
+            memory_candidates = []
             for pattern in memory_patterns:
                 matches = re.findall(pattern, explain_cost_text, re.IGNORECASE)
                 for match in matches:
                     try:
-                        memory_val = float(match)
-                        metrics['memory_estimates'] += memory_val
-                    except:
+                        memory_candidates.append(float(match))
+                    except Exception:
                         continue
+            metrics['memory_estimates'] = max(memory_candidates) if memory_candidates else 0
+            
+            # 旧ロジックでのメモリ加算は過大になり得るため削除（最大値に統一）
+            # （保持意図がある場合はコメントを外して併用検討）
             
             # スキャン・JOIN・Exchange操作数をカウント
             metrics['scan_operations'] = len(re.findall(r'Scan|FileScan|TableScan', explain_cost_text, re.IGNORECASE))
