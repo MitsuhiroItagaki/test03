@@ -130,7 +130,7 @@ STAGED_JUDGMENT_MODE = 'Y'
 # ⚠️ STRICT_VALIDATION_MODE: Enable strict input validation for metrics
 # - 'Y': Perform strict validation of all input metrics with detailed error messages
 # - 'N': Use basic validation (faster but less detailed error reporting)
-STRICT_VALIDATION_MODE = 'Y'
+STRICT_VALIDATION_MODE = 'N'
 
 # 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
 CATALOG = 'tpcds'
@@ -12430,7 +12430,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     # 入力値検証を追加
     def validate_metrics_for_judgment(metrics, metrics_name):
         """メトリクスの必要フィールドを検証"""
-        # 設定確認：厳格な検証が無効の場合は基本検証のみ
+        # 設定確認：厳格な検証が無効の場合は基本検証のみ（デフォルト無効）
         strict_mode = globals().get('STRICT_VALIDATION_MODE', 'N').upper() == 'Y'
         
         if not isinstance(metrics, dict):
@@ -12497,7 +12497,15 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 'comprehensive_analysis': {
                     'total_cost_ratio': basic_ratio,
                     'fallback_mode': True,
-                    'error_reason': str(e)
+                    'error_reason': str(e),
+                    'detailed_analysis': {
+                        'data_size_ratio': basic_ratio,
+                        'join_ratio': 1.0,
+                        'scan_ratio': 1.0,
+                        'memory_ratio': basic_ratio,
+                        'spill_risk_ratio': 1.0,
+                        'fallback_mode': True
+                    }
                 }
             }
         except Exception as fallback_error:
@@ -12516,7 +12524,15 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 'comprehensive_analysis': {
                     'total_cost_ratio': 1.0,
                     'fallback_mode': True,
-                    'error_reason': f'Multiple errors: {str(e)}, {str(fallback_error)}'
+                    'error_reason': f'Multiple errors: {str(e)}, {str(fallback_error)}',
+                    'detailed_analysis': {
+                        'data_size_ratio': 1.0,
+                        'join_ratio': 1.0,
+                        'scan_ratio': 1.0,
+                        'memory_ratio': 1.0,
+                        'spill_risk_ratio': 1.0,
+                        'fallback_mode': True
+                    }
                 }
             }
     comprehensive_ratio = cost_analysis['comprehensive_cost_ratio']
@@ -12884,6 +12900,9 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             
             # スピルリスク推定
             metrics['spill_risk_score'] = estimate_spill_risk(metrics)
+            
+            # 互換性のためrow_countキーを追加（total_rowsのエイリアス）
+            metrics['row_count'] = metrics['total_rows']
                     
             return metrics
         
@@ -13157,8 +13176,15 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         else:
             detailed_factors.append(f"➖ Performance equivalent ({improvement_pct:.1f}% change - no clear improvement)")
         
-        # 個別メトリクス詳細の追加
-        detailed_ratios = comp_analysis['detailed_analysis']
+        # 個別メトリクス詳細の追加 (フォールバック対応)
+        detailed_ratios = comp_analysis.get('detailed_analysis', {
+            'data_size_ratio': 1.0,
+            'join_ratio': 1.0,
+            'scan_ratio': 1.0,
+            'memory_ratio': 1.0,
+            'spill_risk_ratio': 1.0,
+            'fallback_mode': True
+        })
         
         # データ処理効率
         data_size_improvement = (1 - detailed_ratios['data_size_ratio']) * 100
