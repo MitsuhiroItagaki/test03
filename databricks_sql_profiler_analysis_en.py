@@ -12683,6 +12683,16 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     
     print("="*80)
     
+    # comprehensive_analysisキーを追加（KeyError対策）
+    judgment['comprehensive_analysis'] = {
+        'total_cost_ratio': final_comprehensive_ratio,
+        'component_ratios': component_ratios,
+        'detailed_analysis': detailed_ratios,
+        'weights_used': cost_analysis['weights_used'],
+        'spill_improvement_factor': spill_improvement_factor,
+        'original_comprehensive_ratio': comprehensive_ratio
+    }
+    
     return judgment
 
 def compare_query_performance(original_explain_cost: str, optimized_explain_cost: str) -> Dict[str, Any]:
