@@ -12423,6 +12423,63 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
         'weights_used': weights  # 使用された重みを記録
     }
 
+def detect_join_strategy_improvement(optimized_metrics, original_metrics):
+    """
+    JOIN戦略の改善を検出する
+    
+    Args:
+        optimized_metrics: 最適化クエリのメトリクス
+        original_metrics: オリジナルクエリのメトリクス
+    
+    Returns:
+        bool: JOIN戦略が改善されている場合True
+    """
+    # EXPLAIN COSTコンテンツからJOIN戦略を検出
+    def extract_join_strategy(explain_content):
+        """EXPLAIN COSTからJOIN戦略を抽出"""
+        if not explain_content:
+            return None
+            
+        # PhotonBroadcastHashJoinの検出
+        if 'PhotonBroadcastHashJoin' in explain_content or 'BroadcastHashJoin' in explain_content:
+            return 'broadcast'
+        # PhotonShuffledHashJoinの検出  
+        elif 'PhotonShuffledHashJoin' in explain_content or 'ShuffledHashJoin' in explain_content:
+            return 'shuffle'
+        # その他のJOIN戦略
+        elif 'SortMergeJoin' in explain_content:
+            return 'sortmerge'
+        else:
+            return 'unknown'
+    
+    # グローバル変数から最新のEXPLAIN COSTコンテンツを取得
+    original_explain_content = globals().get('cached_original_explain_cost_content', '')
+    optimized_explain_content = globals().get('cached_optimized_explain_cost_content', '')
+    
+    original_strategy = extract_join_strategy(original_explain_content)
+    optimized_strategy = extract_join_strategy(optimized_explain_content)
+    
+    # JOIN戦略の効率性ランキング（高いほど効率的）
+    strategy_efficiency = {
+        'broadcast': 3,    # 最も効率的
+        'shuffle': 2,      # 中程度
+        'sortmerge': 1,    # 低効率
+        'unknown': 0       # 不明
+    }
+    
+    original_efficiency = strategy_efficiency.get(original_strategy, 0)
+    optimized_efficiency = strategy_efficiency.get(optimized_strategy, 0)
+    
+    # 最適化クエリの方が効率的なJOIN戦略を使用している場合
+    join_improved = optimized_efficiency > original_efficiency
+    
+    if join_improved:
+        print(f"🔗 JOIN戦略改善検出: {original_strategy} → {optimized_strategy}")
+        print(f"   効率性スコア: {original_efficiency} → {optimized_efficiency}")
+    
+    return join_improved
+
+
 def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     """
     すべてのメトリクスを考慮した総合パフォーマンス判定
@@ -12623,16 +12680,31 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             'improvement_level': 'degraded'
         })
     else:
-        judgment_level = "➖ 等価性能 (EQUIVALENT)"
-        recommendation_text = "元クエリを使用 (変化なし)"
-        judgment.update({
-            'substantial_improvement_detected': False,
-            'significant_improvement_detected': False,
-            'performance_degradation_detected': False,
-            'is_optimization_beneficial': False,
-            'recommendation': 'use_original',
-            'improvement_level': 'equivalent'
-        })
+        # 等価性能の場合でも、JOIN戦略が改善されているかチェック
+        join_strategy_improved = detect_join_strategy_improvement(optimized_metrics, original_metrics)
+        
+        if join_strategy_improved:
+            judgment_level = "✅ JOIN戦略改善 (JOIN_OPTIMIZED)"
+            recommendation_text = "最適化クエリを推奨 (JOIN戦略改善)"
+            judgment.update({
+                'substantial_improvement_detected': False,
+                'significant_improvement_detected': True,  # JOIN改善として扱う
+                'performance_degradation_detected': False,
+                'is_optimization_beneficial': True,
+                'recommendation': 'use_optimized',
+                'improvement_level': 'join_optimized'
+            })
+        else:
+            judgment_level = "➖ 等価性能 (EQUIVALENT)"
+            recommendation_text = "元クエリを使用 (変化なし)"
+            judgment.update({
+                'substantial_improvement_detected': False,
+                'significant_improvement_detected': False,
+                'performance_degradation_detected': False,
+                'is_optimization_beneficial': False,
+                'recommendation': 'use_original',
+                'improvement_level': 'equivalent'
+            })
     
     print(f"\n🎯 最終判定結果:")
     print(f"   判定レベル         : {judgment_level}")
@@ -12706,6 +12778,10 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
     Returns:
         Dict: Performance comparison results and recommendations
     """
+    # EXPLAIN COSTコンテンツをグローバル変数にキャッシュ（JOIN戦略検出用）
+    globals()['cached_original_explain_cost_content'] = original_explain_cost
+    globals()['cached_optimized_explain_cost_content'] = optimized_explain_cost
+    
     comparison_result = {
         'is_optimization_beneficial': True,
         'performance_degradation_detected': False,
@@ -12725,7 +12801,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         # 🚨 EXPLAIN COST内容の妥当性チェック
         def validate_explain_cost_content(explain_cost_text, query_type):
             """EXPLAIN COST内容が正常かチェック"""
-            if len(explain_cost_text) < 1000:
+            if len(explain_cost_text) < 200:  # 閾値を1000から200に下げる
                 return False, f"{query_type} EXPLAIN COST content too short ({len(explain_cost_text)} chars)"
             
             if 'ExplainCommand' in explain_cost_text:

@@ -1,0 +1,20 @@
+== Optimized Logical Plan ==
+GlobalLimit 10, Statistics(sizeInBytes=410.0 B, rowCount=10)
+
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- == Initial Plan ==
+   ColumnarToRow
+   +- PhotonResultStage
+      +- PhotonTopK(limit=10, includeTies=false, sortOrder=[val#19878 DESC NULLS LAST], partitionOrderCount=0)
+         +- PhotonShuffleExchangeSource
+            +- PhotonShuffleMapStage
+               +- PhotonShuffleExchangeSink SinglePartition
+                  +- PhotonTopK(limit=10, includeTies=false, sortOrder=[val#19878 DESC NULLS LAST], partitionOrderCount=0)
+                     +- PhotonProject [ID#19842, val#19878, cs_net_paid#19872]
+                        +- PhotonBroadcastHashJoin [ID#19842], [ID#19877], Inner, BuildRight, false, true
+                           :- PhotonScan parquet tpcds.tpcds_sf1000_delta_lc.detail_itagaki[ID#19842,cs_net_paid#19872]
+                           +- PhotonShuffleExchangeSource
+                              +- PhotonShuffleMapStage
+                                 +- PhotonShuffleExchangeSink SinglePartition
+                                    +- PhotonScan parquet tpcds.tpcds_sf1000_delta_lc.master_itagaki[ID#19877,val#19878]
