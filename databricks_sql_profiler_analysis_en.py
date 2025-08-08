@@ -15711,7 +15711,7 @@ def refine_report_content_with_llm(report_content: str) -> str:
         if isinstance(refined_content, list):
             refined_content = format_thinking_response(refined_content)
         
-        print(f"✅ LLM-based report refinement completed (Cell 46 independent processing)")
+        print(f"✅ LLM-based report refinement completed (Cell 47 independent processing)")
         return refined_content
         
     except Exception as e:
