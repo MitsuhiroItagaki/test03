@@ -109,6 +109,29 @@ DEBUG_ENABLED = 'N'
 # 🔍 JSON Debug output setting (DEBUG_JSON_ENABLED: 'Y' = show JSON debug info, 'N' = hide JSON debug info)
 DEBUG_JSON_ENABLED = 'N'
 
+# 🔧 Enhanced error handling settings
+# Controls detailed error analysis and intermediate result saving
+
+# 📊 ENHANCED_ERROR_HANDLING: Enable detailed error reporting with stack traces
+# - 'Y': Save detailed error logs with stack traces and intermediate results
+# - 'N': Use standard error handling (backward compatibility)
+ENHANCED_ERROR_HANDLING = 'Y'
+
+# 🔍 SAVE_INTERMEDIATE_RESULTS: Save intermediate analysis results for debugging
+# - 'Y': Save JSON files with intermediate analysis data at each stage
+# - 'N': No intermediate result saving (reduces file output)
+SAVE_INTERMEDIATE_RESULTS = 'Y'
+
+# 🎯 STAGED_JUDGMENT_MODE: Use staged performance judgment with fallback strategies
+# - 'Y': Use 3-stage progressive analysis with partial result utilization
+# - 'N': Use traditional single-stage comprehensive judgment
+STAGED_JUDGMENT_MODE = 'Y'
+
+# ⚠️ STRICT_VALIDATION_MODE: Enable strict input validation for metrics
+# - 'Y': Perform strict validation of all input metrics with detailed error messages
+# - 'N': Use basic validation (faster but less detailed error reporting)
+STRICT_VALIDATION_MODE = 'Y'
+
 # 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
 CATALOG = 'tpcds'
 DATABASE = 'tpcds_sf1000_delta_lc'
@@ -12404,7 +12427,98 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     """
     すべてのメトリクスを考慮した総合パフォーマンス判定
     """
-    cost_analysis = calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics)
+    # 入力値検証を追加
+    def validate_metrics_for_judgment(metrics, metrics_name):
+        """メトリクスの必要フィールドを検証"""
+        # 設定確認：厳格な検証が無効の場合は基本検証のみ
+        strict_mode = globals().get('STRICT_VALIDATION_MODE', 'N').upper() == 'Y'
+        
+        if not isinstance(metrics, dict):
+            raise ValueError(f"{metrics_name} metrics must be a dictionary, got {type(metrics)}")
+        
+        if strict_mode:
+            # 厳格な検証モード
+            required_fields = ['total_size_bytes', 'row_count', 'scan_operations', 'join_operations']
+            missing_fields = []
+            invalid_fields = []
+            
+            for field in required_fields:
+                if field not in metrics:
+                    missing_fields.append(field)
+                elif metrics[field] is None:
+                    invalid_fields.append(f"{field} is None")
+                elif not isinstance(metrics[field], (int, float)):
+                    invalid_fields.append(f"{field} is not numeric: {type(metrics[field])}")
+            
+            if missing_fields:
+                raise ValueError(f"{metrics_name} missing required fields: {missing_fields}")
+            if invalid_fields:
+                raise ValueError(f"{metrics_name} invalid field values: {invalid_fields}")
+            
+            # 値の妥当性チェック
+            if metrics['total_size_bytes'] < 0:
+                raise ValueError(f"{metrics_name} total_size_bytes cannot be negative: {metrics['total_size_bytes']}")
+            if metrics['row_count'] < 0:
+                raise ValueError(f"{metrics_name} row_count cannot be negative: {metrics['row_count']}")
+        else:
+            # 基本検証モード（必要最小限のチェック）
+            basic_fields = ['total_size_bytes', 'row_count']
+            for field in basic_fields:
+                if field not in metrics or metrics[field] is None:
+                    raise ValueError(f"{metrics_name} missing critical field: {field}")
+    
+    try:
+        # メトリクス検証
+        validate_metrics_for_judgment(original_metrics, "Original")
+        validate_metrics_for_judgment(optimized_metrics, "Optimized")
+        
+        cost_analysis = calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics)
+    except Exception as e:
+        # 検証エラーまたは計算エラーが発生した場合のフォールバック
+        print(f"⚠️ Comprehensive judgment error: {str(e)}")
+        print("🔄 Falling back to basic performance comparison")
+        
+        # 基本的な比較のみ実行
+        try:
+            basic_size_ratio = optimized_metrics.get('total_size_bytes', 1) / max(original_metrics.get('total_size_bytes', 1), 1)
+            basic_row_ratio = optimized_metrics.get('row_count', 1) / max(original_metrics.get('row_count', 1), 1)
+            basic_ratio = (basic_size_ratio + basic_row_ratio) / 2
+            
+            return {
+                'comprehensive_cost_ratio': basic_ratio,
+                'performance_degradation_detected': basic_ratio > 1.01,
+                'significant_improvement_detected': basic_ratio < 0.99,
+                'substantial_improvement_detected': basic_ratio < 0.90,
+                'is_optimization_beneficial': basic_ratio <= 1.01,
+                'recommendation': 'use_original' if basic_ratio > 1.01 else 'use_optimized',
+                'improvement_level': 'FALLBACK_BASIC_COMPARISON',
+                'judgment_detail': f'Basic comparison due to error: {str(e)}',
+                'spill_improvement_factor': 1.0,
+                'comprehensive_analysis': {
+                    'total_cost_ratio': basic_ratio,
+                    'fallback_mode': True,
+                    'error_reason': str(e)
+                }
+            }
+        except Exception as fallback_error:
+            # フォールバックも失敗した場合は安全側に
+            print(f"❌ Fallback comparison also failed: {str(fallback_error)}")
+            return {
+                'comprehensive_cost_ratio': 1.0,
+                'performance_degradation_detected': True,
+                'significant_improvement_detected': False,
+                'substantial_improvement_detected': False,
+                'is_optimization_beneficial': False,
+                'recommendation': 'use_original',
+                'improvement_level': 'ERROR_FALLBACK_ORIGINAL',
+                'judgment_detail': f'Error in both comprehensive and fallback: {str(e)}, {str(fallback_error)}',
+                'spill_improvement_factor': 1.0,
+                'comprehensive_analysis': {
+                    'total_cost_ratio': 1.0,
+                    'fallback_mode': True,
+                    'error_reason': f'Multiple errors: {str(e)}, {str(fallback_error)}'
+                }
+            }
     comprehensive_ratio = cost_analysis['comprehensive_cost_ratio']
     component_ratios = cost_analysis['component_ratios']
     detailed_ratios = cost_analysis['detailed_ratios']
@@ -12773,12 +12887,218 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                     
             return metrics
         
+        # 中間結果を保存する関数
+        def save_intermediate_results(stage, data):
+            """パフォーマンス比較の中間結果を保存"""
+            # 設定確認：中間結果保存が無効の場合はスキップ
+            if globals().get('SAVE_INTERMEDIATE_RESULTS', 'N').upper() != 'Y':
+                return None
+                
+            try:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"debug_intermediate_performance_{stage}_{timestamp}.json"
+                
+                import json
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+                
+                print(f"🔍 Intermediate result saved: {filename}")
+                return filename
+            except Exception as save_error:
+                print(f"⚠️ Failed to save intermediate result: {save_error}")
+                return None
+        
         # 元クエリと最適化クエリのメトリクス抽出
         original_metrics = extract_cost_metrics(original_explain_cost)
         optimized_metrics = extract_cost_metrics(optimized_explain_cost)
         
-        # 🚀 包括的パフォーマンス判定（すべてのメトリクスを考慮）
-        comprehensive_judgment = comprehensive_performance_judgment(original_metrics, optimized_metrics)
+        # 元クエリと最適化クエリのメトリクスを中間結果として保存
+        intermediate_data = {
+            'stage': 'metrics_extracted',
+            'original_metrics': original_metrics,
+            'optimized_metrics': optimized_metrics,
+            'original_explain_cost_length': len(original_explain_cost),
+            'optimized_explain_cost_length': len(optimized_explain_cost)
+        }
+        save_intermediate_results('metrics', intermediate_data)
+        
+        # 🚀 段階的パフォーマンス判定の実装
+        def perform_staged_performance_judgment(original_metrics, optimized_metrics):
+            """段階的にパフォーマンス判定を実行し、エラー時も部分的な結果を活用"""
+            
+            # 設定確認：段階的判定が無効の場合は従来の方法を使用
+            if globals().get('STAGED_JUDGMENT_MODE', 'N').upper() != 'Y':
+                print("🔄 Using traditional comprehensive judgment (STAGED_JUDGMENT_MODE=N)")
+                return comprehensive_performance_judgment(original_metrics, optimized_metrics)
+            
+            # ステージ1: 基本メトリクス比較
+            stage1_result = None
+            try:
+                print("🔍 Stage 1: Basic metrics comparison")
+                basic_size_ratio = optimized_metrics.get('total_size_bytes', 1) / max(original_metrics.get('total_size_bytes', 1), 1)
+                basic_row_ratio = optimized_metrics.get('row_count', 1) / max(original_metrics.get('row_count', 1), 1)
+                
+                stage1_result = {
+                    'stage': 'basic_comparison',
+                    'success': True,
+                    'size_ratio': basic_size_ratio,
+                    'row_ratio': basic_row_ratio,
+                    'basic_ratio': (basic_size_ratio + basic_row_ratio) / 2,
+                    'recommendation': 'use_original' if (basic_size_ratio + basic_row_ratio) / 2 > 1.01 else 'use_optimized'
+                }
+                print(f"✅ Stage 1 completed: ratio={stage1_result['basic_ratio']:.4f}")
+                save_intermediate_results('stage1_basic', stage1_result)
+                
+            except Exception as e:
+                print(f"❌ Stage 1 failed: {str(e)}")
+                stage1_result = {
+                    'stage': 'basic_comparison',
+                    'success': False,
+                    'error': str(e),
+                    'basic_ratio': 1.0,
+                    'recommendation': 'use_original'
+                }
+            
+            # ステージ2: 詳細メトリクス分析
+            stage2_result = None
+            try:
+                print("🔍 Stage 2: Detailed metrics analysis")
+                scan_ratio = optimized_metrics.get('scan_operations', 1) / max(original_metrics.get('scan_operations', 1), 1)
+                join_ratio = optimized_metrics.get('join_operations', 1) / max(original_metrics.get('join_operations', 1), 1)
+                
+                stage2_result = {
+                    'stage': 'detailed_analysis',
+                    'success': True,
+                    'scan_ratio': scan_ratio,
+                    'join_ratio': join_ratio,
+                    'operations_ratio': (scan_ratio + join_ratio) / 2
+                }
+                print(f"✅ Stage 2 completed: operations_ratio={stage2_result['operations_ratio']:.4f}")
+                save_intermediate_results('stage2_detailed', stage2_result)
+                
+            except Exception as e:
+                print(f"❌ Stage 2 failed: {str(e)}")
+                stage2_result = {
+                    'stage': 'detailed_analysis',
+                    'success': False,
+                    'error': str(e),
+                    'operations_ratio': 1.0
+                }
+            
+            # ステージ3: 包括的判定
+            stage3_result = None
+            try:
+                print("🔍 Stage 3: Comprehensive judgment")
+                comprehensive_judgment = comprehensive_performance_judgment(original_metrics, optimized_metrics)
+                stage3_result = {
+                    'stage': 'comprehensive_judgment',
+                    'success': True,
+                    'comprehensive_judgment': comprehensive_judgment
+                }
+                print(f"✅ Stage 3 completed: comprehensive_ratio={comprehensive_judgment.get('comprehensive_cost_ratio', 'N/A')}")
+                save_intermediate_results('stage3_comprehensive', stage3_result)
+                
+            except Exception as e:
+                print(f"❌ Stage 3 failed: {str(e)}")
+                stage3_result = {
+                    'stage': 'comprehensive_judgment',
+                    'success': False,
+                    'error': str(e)
+                }
+            
+            # 結果統合と最終判定
+            print("🎯 Integrating staged results for final judgment")
+            
+            if stage3_result and stage3_result['success']:
+                # Stage 3が成功した場合は包括的判定を使用
+                print("✅ Using Stage 3 comprehensive judgment")
+                return stage3_result['comprehensive_judgment']
+                
+            elif stage2_result and stage2_result['success'] and stage1_result and stage1_result['success']:
+                # Stage 1,2が成功した場合は結合判定を作成
+                print("🔄 Using combined Stage 1+2 judgment")
+                combined_ratio = (stage1_result['basic_ratio'] + stage2_result['operations_ratio']) / 2
+                
+                return {
+                    'comprehensive_cost_ratio': combined_ratio,
+                    'performance_degradation_detected': combined_ratio > 1.01,
+                    'significant_improvement_detected': combined_ratio < 0.99,
+                    'substantial_improvement_detected': combined_ratio < 0.90,
+                    'is_optimization_beneficial': combined_ratio <= 1.01,
+                    'recommendation': 'use_original' if combined_ratio > 1.01 else 'use_optimized',
+                    'improvement_level': 'STAGE_1_2_COMBINED',
+                    'judgment_detail': f'Combined basic and detailed analysis: ratio={combined_ratio:.4f}',
+                    'spill_improvement_factor': 1.0,
+                    'comprehensive_analysis': {
+                        'total_cost_ratio': combined_ratio,
+                        'fallback_mode': True,
+                        'stage_results': {
+                            'stage1': stage1_result,
+                            'stage2': stage2_result,
+                            'stage3': stage3_result
+                        }
+                    }
+                }
+                
+            elif stage1_result and stage1_result['success']:
+                # Stage 1のみ成功した場合
+                print("🔄 Using Stage 1 basic judgment only")
+                return {
+                    'comprehensive_cost_ratio': stage1_result['basic_ratio'],
+                    'performance_degradation_detected': stage1_result['basic_ratio'] > 1.01,
+                    'significant_improvement_detected': stage1_result['basic_ratio'] < 0.99,
+                    'substantial_improvement_detected': stage1_result['basic_ratio'] < 0.90,
+                    'is_optimization_beneficial': stage1_result['basic_ratio'] <= 1.01,
+                    'recommendation': stage1_result['recommendation'],
+                    'improvement_level': 'STAGE_1_BASIC_ONLY',
+                    'judgment_detail': f'Basic analysis only: ratio={stage1_result["basic_ratio"]:.4f}',
+                    'spill_improvement_factor': 1.0,
+                    'comprehensive_analysis': {
+                        'total_cost_ratio': stage1_result['basic_ratio'],
+                        'fallback_mode': True,
+                        'stage_results': {
+                            'stage1': stage1_result,
+                            'stage2': stage2_result,
+                            'stage3': stage3_result
+                        }
+                    }
+                }
+            
+            else:
+                # 全ステージが失敗した場合は安全側に
+                print("❌ All stages failed - using safe fallback")
+                return {
+                    'comprehensive_cost_ratio': 1.0,
+                    'performance_degradation_detected': True,
+                    'significant_improvement_detected': False,
+                    'substantial_improvement_detected': False,
+                    'is_optimization_beneficial': False,
+                    'recommendation': 'use_original',
+                    'improvement_level': 'ALL_STAGES_FAILED',
+                    'judgment_detail': 'All analysis stages failed - using original query for safety',
+                    'spill_improvement_factor': 1.0,
+                    'comprehensive_analysis': {
+                        'total_cost_ratio': 1.0,
+                        'fallback_mode': True,
+                        'stage_results': {
+                            'stage1': stage1_result,
+                            'stage2': stage2_result,
+                            'stage3': stage3_result
+                        }
+                    }
+                }
+        
+        # 段階的判定を実行
+        comprehensive_judgment = perform_staged_performance_judgment(original_metrics, optimized_metrics)
+        
+        # 最終判定結果を中間結果として保存
+        judgment_data = {
+            'stage': 'final_judgment_completed',
+            'comprehensive_judgment': comprehensive_judgment,
+            'judgment_success': True
+        }
+        save_intermediate_results('final_judgment', judgment_data)
         
         # 従来の形式との互換性のため、基本比率も計算
         if original_metrics['total_size_bytes'] > 0:
@@ -12888,11 +13208,56 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
         comparison_result['details'] = detailed_factors
         
     except Exception as e:
+        import traceback
+        # 詳細なエラー情報を収集
+        error_type = type(e).__name__
+        error_message = str(e)
+        error_traceback = traceback.format_exc()
+        
+        # エラーの発生場所を特定
+        tb = traceback.extract_tb(e.__traceback__)
+        if tb:
+            error_location = f"Line {tb[-1].lineno} in {tb[-1].name}"
+        else:
+            error_location = "Unknown location"
+        
+        # 詳細なエラー情報を構築
+        detailed_error = f"Type: {error_type}, Message: {error_message}, Location: {error_location}"
+        
+        # デバッグ用の詳細ログを保存
+        debug_log = f"""
+=== Performance Comparison Error Debug Log ===
+Error Type: {error_type}
+Error Message: {error_message}
+Error Location: {error_location}
+Full Traceback:
+{error_traceback}
+=== End Debug Log ===
+"""
+        
+        # デバッグログをファイルに保存（設定による制御）
+        debug_filename = None
+        if globals().get('ENHANCED_ERROR_HANDLING', 'N').upper() == 'Y':
+            try:
+                from datetime import datetime
+                debug_filename = f"debug_performance_comparison_error_{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+                with open(debug_filename, 'w', encoding='utf-8') as f:
+                    f.write(debug_log)
+                print(f"🐛 Enhanced error debug log saved: {debug_filename}")
+            except:
+                pass  # ログ保存失敗は無視
+        
         # エラー時は安全側に倒して元クエリを推奨
         comparison_result['performance_degradation_detected'] = True
         comparison_result['is_optimization_beneficial'] = False
         comparison_result['recommendation'] = 'use_original'
-        comparison_result['details'] = [f"パフォーマンス比較エラーのため元クエリ使用: {str(e)}"]
+        comparison_result['details'] = [f"パフォーマンス比較エラーのため元クエリ使用: {detailed_error}"]
+        comparison_result['error_debug_info'] = {
+            'error_type': error_type,
+            'error_message': error_message,
+            'error_location': error_location,
+            'debug_filename': debug_filename if 'debug_filename' in locals() else None
+        }
     
     return comparison_result
 
