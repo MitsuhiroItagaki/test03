@@ -9255,6 +9255,19 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
         cost_icon = "❌" if total_cost_ratio > 1.1 else "✅" if total_cost_ratio < 0.9 else "➖"
         memory_icon = "❌" if memory_usage_ratio > 1.1 else "✅" if memory_usage_ratio < 0.9 else "➖"
         
+        # Photon表示用の派生値
+        photon_supported_original_val = performance_comparison.get('photon_supported_original')
+        photon_supported_optimized_val = performance_comparison.get('photon_supported_optimized')
+        photon_supported_original_text = 'はい' if photon_supported_original_val is True else 'いいえ' if photon_supported_original_val is False else '不明'
+        photon_supported_optimized_text = 'はい' if photon_supported_optimized_val is True else 'いいえ' if photon_supported_optimized_val is False else '不明'
+        photon_support_icon = '❌' if (photon_supported_original_val is True and photon_supported_optimized_val is False) else '✅' if (photon_supported_original_val is False and photon_supported_optimized_val is True) else '➖'
+        orig_photon_ratio = float(performance_comparison.get('photon_ratio_original', 0.0) or 0.0)
+        opt_photon_ratio = float(performance_comparison.get('photon_ratio_optimized', 0.0) or 0.0)
+        photon_ratio_display = (f"{(opt_photon_ratio/max(orig_photon_ratio, 1e-9)):.2f}倍" if orig_photon_ratio > 0 else '—')
+        photon_util_icon = '✅' if (opt_photon_ratio - orig_photon_ratio) > 0.05 else '❌' if (orig_photon_ratio - opt_photon_ratio) > 0.05 else '➖'
+        orig_photon_pct = f"{orig_photon_ratio*100:.0f}%"
+        opt_photon_pct = f"{opt_photon_ratio*100:.0f}%"
+        
         section = f"""
 
 **📊 実行結果**: {status_text}
@@ -9265,6 +9278,8 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
 |------|----------|-------------|------|------|
 | 実行コスト | 1.00 (基準) | {total_cost_ratio:.2f} | {total_cost_ratio:.2f}倍 | {cost_icon} |
 | メモリ使用量 | 1.00 (基準) | {memory_usage_ratio:.2f} | {memory_usage_ratio:.2f}倍 | {memory_icon} |
+| Photon対応 | {photon_supported_original_text} | {photon_supported_optimized_text} | — | {photon_support_icon} |
+| Photon利用度 | {orig_photon_pct} | {opt_photon_pct} | {photon_ratio_display} | {photon_util_icon} |
 
 #### 📋 判定結果
 
@@ -9304,6 +9319,19 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
         cost_icon = "❌" if total_cost_ratio > 1.1 else "✅" if total_cost_ratio < 0.9 else "➖"
         memory_icon = "❌" if memory_usage_ratio > 1.1 else "✅" if memory_usage_ratio < 0.9 else "➖"
         
+        # Photon display values
+        photon_supported_original_val = performance_comparison.get('photon_supported_original')
+        photon_supported_optimized_val = performance_comparison.get('photon_supported_optimized')
+        photon_supported_original_text = 'Yes' if photon_supported_original_val is True else 'No' if photon_supported_original_val is False else 'Unknown'
+        photon_supported_optimized_text = 'Yes' if photon_supported_optimized_val is True else 'No' if photon_supported_optimized_val is False else 'Unknown'
+        photon_support_icon = '❌' if (photon_supported_original_val is True and photon_supported_optimized_val is False) else '✅' if (photon_supported_original_val is False and photon_supported_optimized_val is True) else '➖'
+        orig_photon_ratio = float(performance_comparison.get('photon_ratio_original', 0.0) or 0.0)
+        opt_photon_ratio = float(performance_comparison.get('photon_ratio_optimized', 0.0) or 0.0)
+        photon_ratio_display = (f"{(opt_photon_ratio/max(orig_photon_ratio, 1e-9)):.2f}x" if orig_photon_ratio > 0 else '—')
+        photon_util_icon = '✅' if (opt_photon_ratio - orig_photon_ratio) > 0.05 else '❌' if (orig_photon_ratio - opt_photon_ratio) > 0.05 else '➖'
+        orig_photon_pct = f"{orig_photon_ratio*100:.0f}%"
+        opt_photon_pct = f"{opt_photon_ratio*100:.0f}%"
+        
         section = f"""
 
 **📊 Execution Result**: {status_text}
@@ -9314,6 +9342,8 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
 |------|----------------|-----------------|-------|------------|
 | Execution Cost | 1.00 (baseline) | {total_cost_ratio:.2f} | {total_cost_ratio:.2f}x | {cost_icon} |
 | Memory Usage | 1.00 (baseline) | {memory_usage_ratio:.2f} | {memory_usage_ratio:.2f}x | {memory_icon} |
+| Photon Support | {photon_supported_original_text} | {photon_supported_optimized_text} | — | {photon_support_icon} |
+| Photon Utilization | {orig_photon_pct} | {opt_photon_pct} | {photon_ratio_display} | {photon_util_icon} |
 
 #### 📋 Judgment Results
 
@@ -12849,6 +12879,16 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             metrics['join_operations'] = len(re.findall(r'Join|HashJoin|SortMergeJoin', explain_cost_text, re.IGNORECASE))
             metrics['exchange_count'] = len(re.findall(r'\bExchange\b|\bShuffle\b', explain_cost_text, re.IGNORECASE))
             
+            # Photon演算子検出と利用度（密度）
+            photon_operator_count = len(re.findall(r'\bPhoton\w+\b', explain_cost_text, re.IGNORECASE))
+            # 代表的なオペレータも含めた概算の総オペレータ数
+            other_ops_count = len(re.findall(r'\b(Aggregate|HashAggregate|GroupingAggregate|Project|Filter|Sort|Limit|TopK|Window|Union|Repartition|Coalesce|Broadcast|Subquery|Expand|Generate|CollectLimit|TakeOrderedAndProject)\b', explain_cost_text, re.IGNORECASE))
+            total_operator_count = metrics['scan_operations'] + metrics['join_operations'] + metrics['exchange_count'] + other_ops_count
+            metrics['photon_operator_count'] = photon_operator_count
+            metrics['total_operator_count'] = total_operator_count
+            metrics['photon_operator_ratio'] = photon_operator_count / max(total_operator_count, 1)
+            metrics['photon_detected'] = photon_operator_count > 0 or bool(re.search(r'IS_PHOTON["\s]*[:=]\s*true', explain_cost_text, re.IGNORECASE))
+            
             # JOIN戦略を検出（Broadcast/Shuffle/SortMerge/Unknown）
             if re.search(r'PhotonBroadcastHashJoin|BroadcastHashJoin', explain_cost_text, re.IGNORECASE):
                 metrics['join_strategy'] = 'broadcast'
@@ -13214,6 +13254,13 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             'optimized_estimated_spill_gb': optimized_metrics.get('estimated_spill_gb', 0),
             'estimated_spill_improvement': (original_metrics.get('estimated_spill_gb', 0) - optimized_metrics.get('estimated_spill_gb', 0))
         })
+
+        # Photon指標を比較結果へ反映
+        comparison_result['photon_supported_original'] = bool(original_metrics.get('photon_detected', False))
+        comparison_result['photon_supported_optimized'] = bool(optimized_metrics.get('photon_detected', False))
+        comparison_result['photon_ratio_original'] = float(original_metrics.get('photon_operator_ratio', 0.0))
+        comparison_result['photon_ratio_optimized'] = float(optimized_metrics.get('photon_operator_ratio', 0.0))
+        comparison_result['photon_ratio_delta'] = comparison_result['photon_ratio_optimized'] - comparison_result['photon_ratio_original']
         
         # 🚀 包括的判定結果の詳細情報を生成
         detailed_factors = []
@@ -13243,6 +13290,24 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             'spill_risk_ratio': 1.0,
             'fallback_mode': True
         })
+        
+        # Photon利用状況の詳細
+        try:
+            orig_photon = comparison_result['photon_supported_original']
+            opt_photon = comparison_result['photon_supported_optimized']
+            orig_ratio = comparison_result['photon_ratio_original']
+            opt_ratio = comparison_result['photon_ratio_optimized']
+            ratio_delta = comparison_result['photon_ratio_delta']
+            if orig_photon and not opt_photon:
+                detailed_factors.append("⚠️ Photon support decreased (original: supported → optimized: not supported)")
+            elif (not orig_photon) and opt_photon:
+                detailed_factors.append("✅ Photon support increased (original: not supported → optimized: supported)")
+            if ratio_delta >= 0.10:
+                detailed_factors.append(f"✅ Photon utilization increased (+{ratio_delta*100:.1f} pp, {orig_ratio*100:.1f}% → {opt_ratio*100:.1f}%)")
+            elif ratio_delta <= -0.10:
+                detailed_factors.append(f"⚠️ Photon utilization decreased ({ratio_delta*100:.1f} pp, {orig_ratio*100:.1f}% → {opt_ratio*100:.1f}%)")
+        except Exception:
+            pass
         
         # データ処理効率
         data_size_improvement = (1 - detailed_ratios['data_size_ratio']) * 100
