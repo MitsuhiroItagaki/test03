@@ -9237,6 +9237,10 @@ def generate_performance_comparison_section(performance_comparison: Dict[str, An
     
     # パフォーマンス比較結果の詳細表示
     recommendation = performance_comparison.get('recommendation', 'unknown')
+    # Honor selected_action override (propagated by report generator) unless degradation was detected
+    selected_action = performance_comparison.get('selected_action')
+    if selected_action and not performance_comparison.get('performance_degradation_detected', False):
+        recommendation = selected_action
     total_cost_ratio = performance_comparison.get('total_cost_ratio', 1.0) or 1.0
     memory_usage_ratio = performance_comparison.get('memory_usage_ratio', 1.0) or 1.0
     degradation_detected = performance_comparison.get('performance_degradation_detected', False)
@@ -9525,6 +9529,20 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
         str: 読みやすく構成されたレポート
     """
     from datetime import datetime
+    
+    # === Harmonize recommendation with final selection to avoid contradictions ===
+    if performance_comparison is not None:
+        try:
+            perf = dict(performance_comparison)
+            selected_action = 'use_optimized' if (best_attempt_number is not None and best_attempt_number > 0) else 'use_original'
+            perf['selected_action'] = selected_action
+            ratio = perf.get('total_cost_ratio', 1.0) or 1.0
+            degraded = perf.get('performance_degradation_detected', False)
+            if selected_action == 'use_optimized' and not degraded and ratio <= 1.0:
+                perf['recommendation'] = 'use_optimized'
+            performance_comparison = perf
+        except Exception:
+            pass
     
     # EXPLAIN + EXPLAIN COST結果ファイルの読み込み（EXPLAIN_ENABLEDがYの場合）
     explain_section = ""
