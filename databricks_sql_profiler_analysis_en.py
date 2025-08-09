@@ -3937,7 +3937,8 @@ def analyze_bottlenecks_with_llm(metrics: Dict[str, Any]) -> str:
     report_lines.append(f"| Execution Time | {total_time_sec:.1f}s | {'✅ Good' if total_time_sec < 60 else '⚠️ Needs Improvement'} |")
     report_lines.append(f"| Data Read | {read_gb:.2f}GB | {'✅ Good' if read_gb < 10 else '⚠️ Large Volume'} |")
     report_lines.append(f"| Photon Enabled | {'Yes' if photon_enabled else 'No'} | {'✅ Good' if photon_enabled else '❌ Not Enabled'} |")
-    report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' if cache_hit_ratio > 80 else '⚠️ Needs Improvement'} |")
+report_lines.append(f"| Photon Utilization | {photon_utilization:.1f}% | {'✅ Good' if photon_enabled and photon_utilization >= 80 else ('⚠️ Needs Improvement' if photon_enabled else '❌ Not Enabled')} |")
+report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' if cache_hit_ratio > 80 else '⚠️ Needs Improvement'} |")
     report_lines.append(f"| Filter Rate | {data_selectivity:.1f}% | {'✅ Good' if data_selectivity > 50 else '⚠️ Check Filter Conditions'} |")
     report_lines.append(f"| Shuffle Operations | {shuffle_count} times | {'✅ Good' if shuffle_count < 5 else '⚠️ Many'} |")
     report_lines.append(f"| Spill Occurred | {'Yes' if has_spill else 'No'} | {'❌ Problem' if has_spill else '✅ Good'} |")
@@ -9757,6 +9758,7 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 |------|-----|------|
 | 実行時間 | {overall_metrics.get('total_time_ms', 0):,} ms | {'✅ 良好' if overall_metrics.get('total_time_ms', 0) < 60000 else '⚠️ 改善必要'} |
 | Photon有効 | {'はい' if overall_metrics.get('photon_enabled', False) else 'いいえ'} | {'✅ 良好' if overall_metrics.get('photon_enabled', False) else '❌ 未有効'} |
+| Photon利用率 | {min(overall_metrics.get('photon_utilization_ratio', 0) * 100, 100.0):.1f}% | {'✅ 良好' if overall_metrics.get('photon_utilization_ratio', 0) >= 0.8 else '⚠️ 改善必要'} |
 | キャッシュ効率 | {bottleneck_indicators.get('cache_hit_ratio', 0) * 100:.1f}% | {'✅ 良好' if bottleneck_indicators.get('cache_hit_ratio', 0) > 0.8 else '⚠️ 改善必要'} |
 | フィルタ率 | {bottleneck_indicators.get('data_selectivity', 0) * 100:.2f}% | {'✅ 良好' if bottleneck_indicators.get('data_selectivity', 0) > 0.5 else '⚠️ フィルタ条件を確認'} |
 | シャッフル操作 | {bottleneck_indicators.get('shuffle_operations_count', 0)}回 | {'✅ 良好' if bottleneck_indicators.get('shuffle_operations_count', 0) < 5 else '⚠️ 多数'} |
@@ -10013,6 +10015,7 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 |--------|-------|--------|
 | Execution Time | {overall_metrics.get('total_time_ms', 0):,} ms | {'✅ Good' if overall_metrics.get('total_time_ms', 0) < 60000 else '⚠️ Needs Improvement'} |
 | Photon Enabled | {'Yes' if overall_metrics.get('photon_enabled', False) else 'No'} | {'✅ Good' if overall_metrics.get('photon_enabled', False) else '❌ Not Enabled'} |
+| Photon Utilization | {min(overall_metrics.get('photon_utilization_ratio', 0) * 100, 100.0):.1f}% | {'✅ Good' if overall_metrics.get('photon_utilization_ratio', 0) >= 0.8 else '⚠️ Needs Improvement'} |
 | Cache Efficiency | {bottleneck_indicators.get('cache_hit_ratio', 0) * 100:.1f}% | {'✅ Good' if bottleneck_indicators.get('cache_hit_ratio', 0) > 0.8 else '⚠️ Needs Improvement'} |
 | Filter Rate | {bottleneck_indicators.get('data_selectivity', 0) * 100:.2f}% | {'✅ Good' if bottleneck_indicators.get('data_selectivity', 0) > 0.5 else '⚠️ Check Filter Conditions'} |
 | Shuffle Operations | {bottleneck_indicators.get('shuffle_operations_count', 0)} times | {'✅ Good' if bottleneck_indicators.get('shuffle_operations_count', 0) < 5 else '⚠️ High'} |
@@ -10389,239 +10392,53 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
         refinement_prompt = f"""
 技術文書の編集者として、Databricks SQLパフォーマンス分析レポートを以下のルールに従って推敲してください。
 
-【絶対に守るべき見出し構造】
-```
-# 📊 SQL最適化レポート
+【見出しの骨子（出力に例文を含めないこと）]
+- # 📊 SQL最適化レポート
+- ## 🎯 1. ボトルネック分析結果（AI分析、主要指標、ボトルネック）
+- ## 📋 推奨テーブル分析
+- ## 🚀 4. SQL最適化分析結果（最適化プロセス詳細、最適化提案、パフォーマンス検証、期待効果）
+- ## 🔍 6. EXPLAIN + EXPLAIN COST統合分析結果（必要時）
 
-## 🔍 1. 分析サマリー
+【編集ルール】
+- 冗長表現を削除し、簡潔で明瞭に
+- セクションの重複や矛盾を排除（例: 最終選択と選択理由の整合、適用手法の整合）
+- テンプレートの例文・プレースホルダ・指示文を出力に含めない
+- 与えられた生レポートの事実以外を新規に追加しない（幻覚を禁止）
+- 数値は元の値を保持し、誤った再計算をしない
+- 主要指標テーブルにPhoton利用率の評価行を必ず含める
 
-### 統合パフォーマンス分析表
-主要課題とパフォーマンス指標を以下の統合表形式でまとめてください：
-
-🔍 分析サマリー
-クエリ実行時間は[X.X]秒と[評価]ですが、以下の最適化ポイントが特定されました：
-
-| 項目 | 現在の状況 | 評価 | 優先度 |
-|------|-----------|------|--------|
-| 実行時間 | [X.X]秒 | ✅ 良好 / ⚠️ 改善必要 | - |
-| データ読み取り量 | [X.XX]GB | ✅ 良好 / ⚠️ 大容量 | - |
-| Photon有効化 | はい/いいえ | ✅ 良好 / ❌ 未有効 | - |
-| シャッフル操作 | [N]回 | ✅ 良好 / ⚠️ 多い | 🚨 高 / ⚠️ 中 |
-| スピル発生 | なし/あり | ✅ 良好 / ❌ 問題 | 🚨 高 / - |
-| キャッシュ効率 | [X.X]% | ✅ 良好 / ⚠️ 低効率 | ⚠️ 中 |
-| フィルタ効率 | [X.X]% | ✅ 良好 / ⚠️ 低効率 | ⚠️ 中 |
-| データスキュー | AQE対応済 / 未検出 | ✅ 対応済 / ✅ 良好 | - |
-
-## 📊 2. TOP10時間消費プロセス分析
-
-### ⏱️ 実行時間ランキング
-
-## 🗂️ 3. Liquid Clustering分析結果
-
-### 📋 推奨テーブル分析
-
-## 🚀 4. 最適化されたSQLクエリ
-
-### 🎯 最適化プロセス詳細
-最適化プロセスで実行された試行とその選択理由を以下に示します：
-
-**📊 最適化試行履歴:**
-- 試行回数: [total_attempts]回実行
-- 最終選択: 試行[selected_attempt_num]番が最適解として選択
-- 選択理由: [selection_reason]
-
-**🏆 選択された最適化の効果:**
-- コスト削減率: [cost_improvement]% (EXPLAIN COST比較)
-- メモリ効率改善: [memory_improvement]% (統計比較)
-
-### 💡 具体的な最適化内容とコスト効果
-最適化されたSQLクエリの前に、以下の情報を必ず含めてください：
-
-**🎯 適用された最適化手法:**
-【重要】最適化プロセス詳細セクションで「元のクエリ（最適化により改善されなかったため）」が選択されている場合：
-- ⚠️ 最適化手法は適用されませんでした（元のクエリを使用）
-- 📄 使用ファイル: プロファイラーデータから抽出された元のクエリ
-- 💡 理由: 最適化試行で有効な改善が得られなかったため
-
-それ以外の場合のみ以下を記載：
-- [実際のクエリ書き換え内容を具体的に要約]
-- 例: "JOIN順序の最適化（小テーブル優先）", "フィルタ条件の早期適用", "インデックスヒントの追加"
-- ❌ 実施されていない手法は記載しない（例: スピルが検出されていない場合はREPARTITION適用を記載しない）
-- ❌ "Liquid Clustering implementation"等の未実施の変更は記載しない
-
-**💰 EXPLAIN COSTベースの効果分析:**
-【重要】元のクエリが選択されている場合：
-- ⚠️ 最適化による改善はありませんでした
-- 📊 元のクエリをそのまま使用することを推奨
-
-それ以外の場合のみ以下を記載：
-- クエリ実行コスト削減率: [cost_ratio]倍 (EXPLAIN COST比較結果)
-- メモリ使用量削減率: [memory_ratio]倍 (統計情報ベース比較)
-- 推定データ処理効率: [processing_efficiency]% (スキャン・JOIN効率改善)
-```
-
-【🚨 REPARTITIONに関する重要な修正指示】
-- **スピルが検出されていない場合**: 「REPARTITIONの適用」を推奨改善アクションに含めない
-- **実際に適用されていない最適化手法**: 「緊急対応」や「推奨改善アクション」に記載しない
-- **事実ベースの記載**: 実際に検出された問題と適用された対策のみを記載
-
-【💰 コスト効果分析での必須使用データ】
-- **performance_comparison結果を必ず使用**: cost_ratio、memory_ratio等の実際の比較値
-- **実行時間予測は使用禁止**: 不正確なため記載しない
-- **EXPLAIN COSTベースの数値のみ**: 最適化プロセス中の実際の計算結果を使用
-
-【厳格な禁止事項】
-- TOP10を絶対にTOP5に変更しない
-- "=========="等の区切り文字を削除（ただし絵文字による視覚的表示は保持）
-- 番号付きリストで同じ番号を重複させない
-- メトリクス値や技術情報を削除しない
-- 実施されていない最適化手法を「実施済み」として記載しない
-- 同じコスト比や効果数値を複数個所で重複記載しない（最適化プロセス詳細で一度記載すれば十分）
-
-【🚨 重要な情報保持の必須要件】
-- **現在のクラスタリングキー情報**: 各テーブルの「現在のクラスタリングキー: XX」情報は必ず保持
-- **フィルタ率情報**: 「フィルタ率: X.X% (読み込み: XX.XXGB, プルーン: XX.XXGB)」形式の情報は必ず保持
-- **パーセンテージ計算**: ボトルネック分析のパーセンテージ（全体の○○%）は正確な値を保持
-- **推奨vs現在の比較**: 推奨クラスタリングキーと現在のキーの比較情報は削除禁止
-- **数値メトリクス**: 実行時間、データ読み込み量、スピル量等の数値データは削除禁止
-- **SQL実装例**: ALTER TABLE文やCLUSTER BY構文の具体例は削除禁止
-
-【処理要件】
-1. 上記の見出し構造を必ず使用
-2. 主要課題とパフォーマンス指標を統合表形式でまとめる
-3. 実際に適用された最適化手法のみを記載（実施されていない手法は記載しない）
-4. 具体的なコスト効果を数値で示す
-5. 技術情報とメトリクスを完全保持（特に上記の重要情報）
-6. TOP10表示を維持
-7. 絵文字による視覚的表示を保持（🚨 CRITICAL、⚠️ HIGH、✅良好等）
-8. 不要な区切り文字（========等）のみ削除
-9. 現在のクラスタリングキー情報とフィルタ率情報は絶対に保持
-
-【現在のレポート】
+【入力レポート】
 ```
 {raw_report}
 ```
 
-上記の見出し構造に従って推敲し、技術情報を完全に保持したレポートを出力してください。
+上記ルールに従って推敲し、テンプレート文や例示テキストを一切含まない最終レポートを出力してください。
 """
     else:
         refinement_prompt = f"""
-As a technical document editor, please refine the following Databricks SQL performance analysis report according to these rules.
+As a technical document editor, refine the Databricks SQL performance analysis report according to these rules.
 
-【Required Heading Structure】
-```
-# 📊 SQL Optimization Report
+[Heading Outline (do not include examples in output)]
+- # 📊 SQL Optimization Report
+- ## 🎯 1. Bottleneck Analysis Results (AI analysis, KPIs, bottlenecks)
+- ## 📋 Recommended Table Analysis
+- ## 🚀 4. SQL Optimization Results (process details, proposals, performance verification, expected effects)
+- ## 🔍 6. EXPLAIN + EXPLAIN COST Integrated Analysis (if applicable)
 
-## 🔍 1. Analysis Summary
+[Editing Rules]
+- Remove redundancy; be concise and clear
+- Eliminate duplicated/contradictory sections (e.g., final selection vs reason; applied techniques consistency)
+- Do not include template/example sentences or placeholders in the output
+- Do not add facts not present in the raw report (no hallucinations)
+- Preserve numeric values exactly
+- Include a Photon utilization evaluation row in the KPI table
 
-### Integrated Performance Analysis Table
-Merge major issues and performance indicators into the following integrated table format:
-
-🔍 Analysis Summary
-Query execution time is [X.X] seconds, which is [evaluation], but the following optimization points were identified:
-
-| Item | Current Status | Evaluation | Priority |
-|------|---------------|------------|----------|
-| Execution Time | [X.X]s | ✅ Good / ⚠️ Needs Improvement | - |
-| Data Read Volume | [X.XX]GB | ✅ Good / ⚠️ Large Volume | - |
-| Photon Enabled | Yes/No | ✅ Good / ❌ Not Enabled | - |
-| Shuffle Operations | [N] times | ✅ Good / ⚠️ High | 🚨 High / ⚠️ Medium |
-| Spill Occurrence | None/Present | ✅ Good / ❌ Issues | 🚨 High / - |
-| Cache Efficiency | [X.X]% | ✅ Good / ⚠️ Low Efficiency | ⚠️ Medium |
-| Filter Efficiency | [X.X]% | ✅ Good / ⚠️ Low Efficiency | ⚠️ Medium |
-| Data Skew | AQE Handled / Not Detected | ✅ Handled / ✅ Good | - |
-
-## 📊 2. TOP10 Time-Consuming Processes Analysis
-
-### ⏱️ Execution Time Ranking
-
-## 🗂️ 3. Liquid Clustering Analysis Results
-
-### 📋 Recommended Table Analysis
-
-## 🚀 4. Optimized SQL Query
-
-### 🎯 Optimization Process Details
-The following shows the trials executed during the optimization process and the selection rationale:
-
-**📊 Optimization Trial History:**
-- Trial count: [total_attempts] attempts executed
-- Final selection: Trial [selected_attempt_num] was chosen as the optimal solution
-- Selection reason: [selection_reason]
-
-**🏆 Selected Optimization Effects:**
-- Cost reduction rate: [cost_improvement]% (EXPLAIN COST comparison)
-- Memory efficiency improvement: [memory_improvement]% (statistics comparison)
-
-### 💡 Specific Optimization Details and Cost Effects
-Before the optimized SQL query, must include the following information:
-
-**🎯 Applied Optimization Techniques:**
-【Important】If "Original Query (no improvement achieved through optimization)" is selected in the Optimization Process Details section:
-- ⚠️ No optimization techniques were applied (using original query)
-- 📄 Used file: Original query extracted from profiler data
-- 💡 Reason: Optimization trials did not yield effective improvements
-
-Only for other cases, list the following:
-- [Summarize actual query rewriting content specifically]
-- Examples: "JOIN order optimization (small table first)", "Early filter condition application", "Index hint addition"
-- ❌ Do not list techniques that were not implemented (e.g., do not mention REPARTITION application if no spill was detected)
-- ❌ Do not mention unimplemented changes like "Liquid Clustering implementation"
-
-**💰 EXPLAIN COST-Based Effect Analysis:**
-【Important】If original query is selected:
-- ⚠️ No improvement was achieved through optimization
-- 📊 Recommend using the original query as-is
-
-Only for other cases, list the following:
-- Query execution cost reduction: [cost_ratio]x (EXPLAIN COST comparison result)
-- Memory usage reduction: [memory_ratio]x (statistics-based comparison)
-- Estimated data processing efficiency: [processing_efficiency]% (scan/JOIN efficiency improvement)
-```
-
-【🚨 Critical REPARTITION Correction Instructions】
-- **When no spill is detected**: Do not include "REPARTITION application" in recommended improvement actions
-- **Actually non-applied optimization techniques**: Do not list in "Emergency Response" or "Recommended Improvement Actions"
-- **Fact-based reporting**: Only list actually detected problems and applied countermeasures
-
-【💰 Required Data for Cost Effect Analysis】
-- **Must use performance_comparison results**: cost_ratio, memory_ratio and other actual comparison values
-- **Execution time prediction is prohibited**: Do not include due to inaccuracy
-- **EXPLAIN COST-based numbers only**: Use actual calculation results from optimization process
-
-【Strict Prohibitions】
-- Never change TOP10 to TOP5
-- Remove separator characters like "==========" (but keep emoji visual displays)
-- Do not duplicate numbered list items
-- Do not delete metric values or technical information
-- Do not report non-implemented optimization techniques as "implemented"
-- Do not duplicate the same cost ratios or effect numbers in multiple sections (once in optimization process details is sufficient)
-
-【🚨 Critical Information Preservation Requirements】
-- **Current clustering key information**: Must preserve each table's "Current clustering key: XX" information
-- **Filter rate information**: Must preserve "Filter rate: X.X% (read: XX.XXGB, pruned: XX.XXGB)" format
-- **Percentage calculations**: Preserve accurate percentage values in bottleneck analysis (XX% of total)
-- **Recommended vs current comparison**: Do not delete comparison information between recommended and current clustering keys
-- **Numerical metrics**: Do not delete execution time, data read volume, spill volume, etc.
-- **SQL implementation examples**: Do not delete specific examples of ALTER TABLE and CLUSTER BY syntax
-
-【Processing Requirements】
-1. Must use the above heading structure
-2. Merge major issues and performance indicators into integrated table format
-3. List only actually applied optimization techniques (do not list non-implemented techniques)
-4. Show specific cost effects with numerical values
-5. Completely preserve technical information and metrics (especially the important information above)
-6. Maintain TOP10 display
-7. Keep emoji visual displays (🚨 CRITICAL, ⚠️ HIGH, ✅ Good, etc.)
-8. Remove only unnecessary separator characters (======== etc.)
-9. Absolutely preserve current clustering key information and filter rate information
-
-【Current Report】
+[Input Report]
 ```
 {raw_report}
 ```
 
-Please refine according to the above heading structure and output a report that completely preserves technical information.
+Output the refined report following the rules above, without including any template/example text.
 """
     
     try:
