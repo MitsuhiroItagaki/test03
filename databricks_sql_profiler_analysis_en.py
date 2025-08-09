@@ -10689,6 +10689,11 @@ def validate_and_fix_sql_syntax(sql_query: str) -> str:
     
     # 1. BROADCASTヒントの配置位置チェック
     sql_query = fix_broadcast_hint_placement(sql_query)
+
+    # 先頭 EXPLAIN/EXPLAIN COST の剥離（抽出段階で漏れた保険）
+    import re as _re_fix
+    sql_query = _re_fix.sub(r'^\s*EXPLAIN\s+COST\s+', '', sql_query, flags=_re_fix.IGNORECASE)
+    sql_query = _re_fix.sub(r'^\s*EXPLAIN\s+', '', sql_query, flags=_re_fix.IGNORECASE)
     
     # 2. 不完全なSQL構文の検出と修正
     sql_query = fix_incomplete_sql_syntax(sql_query)
@@ -11274,6 +11279,10 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     if not sql_query or not sql_query.strip():
         return False
     
+    # EXPLAIN/EXPLAIN COSTで始まる場合は不正（保存対象は純粋なDML/DDL）
+    if re.match(r'^\s*EXPLAIN(\s+COST)?\b', sql_query, re.IGNORECASE):
+        return False
+
     # 基本的なSQLキーワードの存在チェック
     has_select = bool(re.search(r'\bSELECT\b', sql_query, re.IGNORECASE))
     
@@ -14681,7 +14690,7 @@ def extract_sql_from_llm_response(llm_response: str) -> str:
     for match in matches:
         match = match.strip()
         # SQLキーワードで始まるかチェック
-        if re.match(r'^(SELECT|WITH|CREATE|INSERT|UPDATE|DELETE|EXPLAIN)', match, re.IGNORECASE):
+        if re.match(r'^(SELECT|WITH|CREATE|INSERT|UPDATE|DELETE)', match, re.IGNORECASE):
             return clean_extracted_sql(match)
     
     # 3. SQLキーワードで始まる行から分析セクションまでを抽出
@@ -14744,7 +14753,14 @@ def clean_extracted_sql(sql_content: str) -> str:
         if line_stripped or (cleaned_lines and not cleaned_lines[-1].strip()):
             cleaned_lines.append(line)
     
-    return '\n'.join(cleaned_lines).strip()
+    cleaned_sql = '\n'.join(cleaned_lines).strip()
+    
+    # 先頭に付いた EXPLAIN/EXPLAIN COST を除去して純粋なSELECT等に正規化
+    import re as _re
+    cleaned_sql = _re.sub(r'^\s*EXPLAIN\s+COST\s+', '', cleaned_sql, flags=_re.IGNORECASE)
+    cleaned_sql = _re.sub(r'^\s*EXPLAIN\s+', '', cleaned_sql, flags=_re.IGNORECASE)
+    
+    return cleaned_sql
 
 
 def extract_analysis_content_from_llm_response(llm_response: str) -> str:
@@ -14839,6 +14855,11 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
     
     # CTASの場合はSELECT部分のみを抽出
     query_for_explain = extract_select_from_ctas(original_query)
+    
+    # 事前正規化: 先頭に EXPLAIN / EXPLAIN COST が付いていれば剥がす
+    import re as _re_exec
+    query_for_explain = _re_exec.sub(r'^\s*EXPLAIN\s+COST\s+', '', query_for_explain, flags=_re_exec.IGNORECASE)
+    query_for_explain = _re_exec.sub(r'^\s*EXPLAIN\s+', '', query_for_explain, flags=_re_exec.IGNORECASE)
     
     # EXPLAIN文とEXPLAIN COST文の生成
     explain_query = f"EXPLAIN {query_for_explain}"
