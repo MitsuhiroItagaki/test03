@@ -3936,9 +3936,8 @@ def analyze_bottlenecks_with_llm(metrics: Dict[str, Any]) -> str:
     report_lines.append("|------|-----|------|")
     report_lines.append(f"| Execution Time | {total_time_sec:.1f}s | {'✅ Good' if total_time_sec < 60 else '⚠️ Needs Improvement'} |")
     report_lines.append(f"| Data Read | {read_gb:.2f}GB | {'✅ Good' if read_gb < 10 else '⚠️ Large Volume'} |")
-    report_lines.append(f"| Photon Enabled | {'Yes' if photon_enabled else 'No'} | {'✅ Good' if photon_enabled else '❌ Not Enabled'} |")
-report_lines.append(f"| Photon Utilization | {photon_utilization:.1f}% | {'✅ Good' if photon_enabled and photon_utilization >= 80 else ('⚠️ Needs Improvement' if photon_enabled else '❌ Not Enabled')} |")
-report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' if cache_hit_ratio > 80 else '⚠️ Needs Improvement'} |")
+    report_lines.append(f"| Photon Utilization | {photon_utilization:.1f}% | {'✅ Good' if photon_utilization >= 80 else '⚠️ Needs Improvement'} |")
+    report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' if cache_hit_ratio > 80 else '⚠️ Needs Improvement'} |")
     report_lines.append(f"| Filter Rate | {data_selectivity:.1f}% | {'✅ Good' if data_selectivity > 50 else '⚠️ Check Filter Conditions'} |")
     report_lines.append(f"| Shuffle Operations | {shuffle_count} times | {'✅ Good' if shuffle_count < 5 else '⚠️ Many'} |")
     report_lines.append(f"| Spill Occurred | {'Yes' if has_spill else 'No'} | {'❌ Problem' if has_spill else '✅ Good'} |")
@@ -3962,12 +3961,12 @@ report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' 
     report_lines.append("")
     
     # Photon分析
-    photon_status = "有効" if photon_enabled else "無効"
+    photon_status = ("未使用" if photon_utilization < 1 else "低利用" if photon_utilization < 50 else "適切" if photon_utilization < 80 else "高利用")
     photon_recommendation = ""
-    if not photon_enabled:
-        photon_recommendation = " → **Photon有効化を強く推奨**"
+    if photon_utilization < 1:
+        photon_recommendation = " → **Photonの適用拡大を推奨**"
     elif photon_utilization < 50:
-        photon_recommendation = " → **Photon利用率向上が必要**"
+        photon_recommendation = " → **Photon利用率の向上を推奨**"
     elif photon_utilization < 80:
         photon_recommendation = " → **Photon設定の最適化を推奨**"
     else:
@@ -4076,8 +4075,8 @@ report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' 
     low_priority_actions = []
     
     # CRITICAL/HIGH priority actions
-    if not photon_enabled:
-        high_priority_actions.append("**Enable Photon Engine** - Expected up to 50% performance improvement")
+    if photon_utilization < 20:
+        high_priority_actions.append("**Increase Photon Utilization** - Adopt Photon operators and optimize configuration")
     
     if has_spill:
         high_priority_actions.append(f"**Resolve Memory Spill** - Eliminate {spill_gb:.2f}GB spill")
@@ -4086,7 +4085,7 @@ report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' 
         high_priority_actions.append("**Shuffle Optimization** - JOIN order and REPARTITION application")
     
     # MEDIUM actions
-    if photon_enabled and photon_utilization < 80:
+    if 20 <= photon_utilization < 80:
         medium_priority_actions.append("**Improve Photon Utilization** - Configuration optimization")
     
     if has_low_parallelism:
@@ -4129,9 +4128,12 @@ report_lines.append(f"| Cache Efficiency | {cache_hit_ratio:.1f}% | {'✅ Good' 
     total_improvement_estimate = 0
     improvement_details = []
     
-    if not photon_enabled:
+    if photon_utilization < 20:
         total_improvement_estimate += 40
-        improvement_details.append("- **Photon Activation**: 30-50% execution time reduction")
+        improvement_details.append("- **Increase Photon Utilization**: 30-50% execution time reduction expected")
+    elif photon_utilization < 80:
+        total_improvement_estimate += 20
+        improvement_details.append("- **Photon Tuning**: 10-30% execution time reduction expected")
     
     if has_spill:
         total_improvement_estimate += 25
@@ -4657,16 +4659,13 @@ print("=" * 50)
 photon_enabled = overall_metrics.get('photon_enabled', False)
 photon_utilization_ratio = overall_metrics.get('photon_utilization_ratio', 0)
 photon_utilization = min(photon_utilization_ratio * 100, 100.0)  # Limit to max 100%
-photon_emoji = "✅" if photon_enabled and photon_utilization > 80 else "⚠️" if photon_enabled else "❌"
+photon_emoji = "✅" if photon_utilization > 80 else "⚠️" if photon_utilization > 0 else "❌"
 
 # Detailed information about utilization rate
-if photon_enabled:
-    photon_total_ms = overall_metrics.get('photon_total_time_ms', 0)
-    task_total_ms = overall_metrics.get('task_total_time_ms', 0)
-    print(f"{photon_emoji} Photon Engine: Enabled (Utilization: {photon_utilization:.1f}%)")
-    print(f"   📊 Photon Execution Time: {photon_total_ms:,} ms | Total Task Time: {task_total_ms:,} ms")
-else:
-    print(f"{photon_emoji} Photon Engine: Disabled")
+photon_total_ms = overall_metrics.get('photon_total_time_ms', 0)
+task_total_ms = overall_metrics.get('task_total_time_ms', 0)
+print(f"{photon_emoji} Photon Utilization: {photon_utilization:.1f}%")
+print(f"   📊 Photon Execution Time: {photon_total_ms:,} ms | Total Task Time: {task_total_ms:,} ms")
 
 # Parallelism and shuffle-related indicators
 shuffle_count = bottleneck_indicators.get('shuffle_operations_count', 0)
@@ -9026,8 +9025,8 @@ def generate_optimization_strategy_summary(optimized_result: str, metrics: Dict[
         if bottleneck_indicators.get('cache_hit_ratio', 1.0) < 0.5:
             performance_issues.append("キャッシュヒット率低下")
         
-        if not overall_metrics.get('photon_enabled', True):
-            performance_issues.append("Photon Engine未活用")
+        if overall_metrics.get('photon_utilization_ratio', 0) < 0.2:
+            performance_issues.append("Photon利用率低")
         
         # データスキュー検出
         if bottleneck_indicators.get('has_skew', False):
@@ -9757,7 +9756,6 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 | 指標 | 値 | 評価 |
 |------|-----|------|
 | 実行時間 | {overall_metrics.get('total_time_ms', 0):,} ms | {'✅ 良好' if overall_metrics.get('total_time_ms', 0) < 60000 else '⚠️ 改善必要'} |
-| Photon有効 | {'はい' if overall_metrics.get('photon_enabled', False) else 'いいえ'} | {'✅ 良好' if overall_metrics.get('photon_enabled', False) else '❌ 未有効'} |
 | Photon利用率 | {min(overall_metrics.get('photon_utilization_ratio', 0) * 100, 100.0):.1f}% | {'✅ 良好' if overall_metrics.get('photon_utilization_ratio', 0) >= 0.8 else '⚠️ 改善必要'} |
 | キャッシュ効率 | {bottleneck_indicators.get('cache_hit_ratio', 0) * 100:.1f}% | {'✅ 良好' if bottleneck_indicators.get('cache_hit_ratio', 0) > 0.8 else '⚠️ 改善必要'} |
 | フィルタ率 | {bottleneck_indicators.get('data_selectivity', 0) * 100:.2f}% | {'✅ 良好' if bottleneck_indicators.get('data_selectivity', 0) > 0.5 else '⚠️ フィルタ条件を確認'} |
@@ -9787,8 +9785,8 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
         if bottleneck_indicators.get('cache_hit_ratio', 0) < 0.5:
             bottlenecks.append("**キャッシュ効率低下**: データ再利用効率が低い")
         
-        if not overall_metrics.get('photon_enabled', False):
-            bottlenecks.append("**Photon未有効**: 高速処理エンジンが利用されていない")
+        if overall_metrics.get('photon_utilization_ratio', 0) < 0.2:
+            bottlenecks.append("**Photon利用率低**: 高速処理エンジンが十分に活用されていない")
         
         if bottleneck_indicators.get('data_selectivity', 0) < 0.2:
             bottlenecks.append("**フィルタ効率低下**: 必要以上のデータを読み込んでいる")
@@ -9958,8 +9956,8 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
         if bottleneck_indicators.get('cache_hit_ratio', 0) < 0.5:
             expected_improvements.append("**キャッシュ効率向上**: 30-70%の読み込み時間短縮が期待されます")
         
-        if not overall_metrics.get('photon_enabled', False):
-            expected_improvements.append("**Photon有効化**: 2-10倍の処理速度向上が期待されます")
+        if overall_metrics.get('photon_utilization_ratio', 0) < 0.2:
+            expected_improvements.append("**Photon利用率向上**: 2-10倍の処理速度向上が期待されます")
         
         if bottleneck_indicators.get('data_selectivity', 0) < 0.2:
             expected_improvements.append("**フィルタ効率改善**: 40-90%のデータ読み込み量削減が期待されます")
@@ -9981,7 +9979,7 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 
 #### 🔧 実装優先度
 
-1. **高優先度**: Photon有効化、メモリスピル解消
+1. **高優先度**: Photon利用率向上、メモリスピル解消
 2. **中優先度**: Liquid Clustering、データレイアウト最適化
 3. **低優先度**: 統計情報更新、キャッシュ戦略
 
@@ -10014,7 +10012,6 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 | Metric | Value | Status |
 |--------|-------|--------|
 | Execution Time | {overall_metrics.get('total_time_ms', 0):,} ms | {'✅ Good' if overall_metrics.get('total_time_ms', 0) < 60000 else '⚠️ Needs Improvement'} |
-| Photon Enabled | {'Yes' if overall_metrics.get('photon_enabled', False) else 'No'} | {'✅ Good' if overall_metrics.get('photon_enabled', False) else '❌ Not Enabled'} |
 | Photon Utilization | {min(overall_metrics.get('photon_utilization_ratio', 0) * 100, 100.0):.1f}% | {'✅ Good' if overall_metrics.get('photon_utilization_ratio', 0) >= 0.8 else '⚠️ Needs Improvement'} |
 | Cache Efficiency | {bottleneck_indicators.get('cache_hit_ratio', 0) * 100:.1f}% | {'✅ Good' if bottleneck_indicators.get('cache_hit_ratio', 0) > 0.8 else '⚠️ Needs Improvement'} |
 | Filter Rate | {bottleneck_indicators.get('data_selectivity', 0) * 100:.2f}% | {'✅ Good' if bottleneck_indicators.get('data_selectivity', 0) > 0.5 else '⚠️ Check Filter Conditions'} |
@@ -10044,8 +10041,8 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
         if bottleneck_indicators.get('cache_hit_ratio', 0) < 0.5:
             bottlenecks.append("**Cache Inefficiency**: Low data reuse efficiency")
         
-        if not overall_metrics.get('photon_enabled', False):
-            bottlenecks.append("**Photon Not Enabled**: High-speed processing engine not utilized")
+        if overall_metrics.get('photon_utilization_ratio', 0) < 0.2:
+            bottlenecks.append("**Low Photon Utilization**: High-performance engine not sufficiently utilized")
         
         if bottleneck_indicators.get('data_selectivity', 0) < 0.2:
             bottlenecks.append("**Poor Filter Efficiency**: Reading more data than necessary")
