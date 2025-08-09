@@ -417,6 +417,11 @@ def get_message(key: str) -> str:
     """Get multilingual message"""
     return MESSAGES.get(OUTPUT_LANGUAGE, MESSAGES['ja']).get(key, key)
 
+# Language toggle helper for inline log strings
+def t(ja: str, en: str) -> str:
+    language = globals().get('OUTPUT_LANGUAGE', 'ja')
+    return en if language == 'en' else ja
+
 # 📋 Supported file path format examples:
 # Unity Catalog Volumes:
 # JSON_FILE_PATH = '/Volumes/catalog/schema/volume/profiler.json'
@@ -12175,11 +12180,11 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     
     # 🚨 詳細ログ出力開始
     print("\n" + "="*80)
-    print("📊 重み付けシステム詳細分析ログ")
+    print(t("📊 重み付けシステム詳細分析ログ", "📊 Weighted System Detailed Analysis Log"))
     print("="*80)
     
     # 重み設定の表示
-    print("\n🎯 メトリクス重み設定:")
+    print(t("\n🎯 メトリクス重み設定:", "\n🎯 Metric Weight Settings:"))
     for key, weight in weights.items():
         category = key.replace('_weight', '').replace('_', ' ').title()
         print(f"   {category:30} : {weight:5.2%} ({weight:.3f})")
@@ -12199,11 +12204,16 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
         return max(lo, min(hi, v))
     data_processing_ratio = _clamp_ratio(data_processing_ratio_raw)
     
-    print(f"\n📊 1. データ処理効率 (重み: {weights['data_processing_weight']:.2%})")
-    print(f"   データサイズ比率   : {data_size_ratio:.4f} ({(data_size_ratio-1)*100:+.1f}%)")
-    print(f"   行数比率          : {rows_ratio:.4f} ({(rows_ratio-1)*100:+.1f}%)")
-    print(f"   → 統合比率        : {data_processing_ratio:.4f} ({(data_processing_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {data_processing_ratio * weights['data_processing_weight']:.4f}")
+    print(t(f"\n📊 1. データ処理効率 (重み: {weights['data_processing_weight']:.2%})",
+             f"\n📊 1. Data Processing Efficiency (weight: {weights['data_processing_weight']:.2%})"))
+    print(t(f"   データサイズ比率   : {data_size_ratio:.4f} ({(data_size_ratio-1)*100:+.1f}%)",
+             f"   Data Size Ratio     : {data_size_ratio:.4f} ({(data_size_ratio-1)*100:+.1f}%)"))
+    print(t(f"   行数比率          : {rows_ratio:.4f} ({(rows_ratio-1)*100:+.1f}%)",
+             f"   Row Count Ratio     : {rows_ratio:.4f} ({(rows_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 統合比率        : {data_processing_ratio:.4f} ({(data_processing_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {data_processing_ratio:.4f} ({(data_processing_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {data_processing_ratio * weights['data_processing_weight']:.4f}",
+             f"   → Weighted Contribution : {data_processing_ratio * weights['data_processing_weight']:.4f}"))
     
     # 2. 操作複雑度比率
     scan_ratio = safe_ratio(optimized_metrics['scan_operations'], 
@@ -12213,11 +12223,16 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     operation_complexity_ratio_raw = (scan_ratio + join_ratio) / 2
     operation_complexity_ratio = _clamp_ratio(operation_complexity_ratio_raw)
     
-    print(f"\n🔄 2. 操作複雑度 (重み: {weights['operation_complexity_weight']:.2%})")
-    print(f"   スキャン操作比率   : {scan_ratio:.4f} ({(scan_ratio-1)*100:+.1f}%)")
-    print(f"   JOIN操作比率      : {join_ratio:.4f} ({(join_ratio-1)*100:+.1f}%)")
-    print(f"   → 統合比率        : {operation_complexity_ratio:.4f} ({(operation_complexity_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {operation_complexity_ratio * weights['operation_complexity_weight']:.4f}")
+    print(t(f"\n🔄 2. 操作複雑度 (重み: {weights['operation_complexity_weight']:.2%})",
+             f"\n🔄 2. Operation Complexity (weight: {weights['operation_complexity_weight']:.2%})"))
+    print(t(f"   スキャン操作比率   : {scan_ratio:.4f} ({(scan_ratio-1)*100:+.1f}%)",
+             f"   Scan Operations Ratio: {scan_ratio:.4f} ({(scan_ratio-1)*100:+.1f}%)"))
+    print(t(f"   JOIN操作比率      : {join_ratio:.4f} ({(join_ratio-1)*100:+.1f}%)",
+             f"   JOIN Operations Ratio: {join_ratio:.4f} ({(join_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 統合比率        : {operation_complexity_ratio:.4f} ({(operation_complexity_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {operation_complexity_ratio:.4f} ({(operation_complexity_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {operation_complexity_ratio * weights['operation_complexity_weight']:.4f}",
+             f"   → Weighted Contribution : {operation_complexity_ratio * weights['operation_complexity_weight']:.4f}"))
     
     # 3. メモリ効率比率（スピルリスク重視）
     memory_ratio = safe_ratio(optimized_metrics['memory_estimates'], 
@@ -12228,11 +12243,16 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     memory_efficiency_ratio_raw = (memory_ratio * 0.4 + spill_risk_ratio * 0.6)
     memory_efficiency_ratio = _clamp_ratio(memory_efficiency_ratio_raw, lo=0.2, hi=3.0)
     
-    print(f"\n💾 3. メモリ効率性 (重み: {weights['memory_efficiency_weight']:.2%})")
-    print(f"   メモリ予測比率     : {memory_ratio:.4f} ({(memory_ratio-1)*100:+.1f}%) - 40%重み")
-    print(f"   スピルリスク比率   : {spill_risk_ratio:.4f} ({(spill_risk_ratio-1)*100:+.1f}%) - 60%重み")
-    print(f"   → 統合比率        : {memory_efficiency_ratio:.4f} ({(memory_efficiency_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {memory_efficiency_ratio * weights['memory_efficiency_weight']:.4f}")
+    print(t(f"\n💾 3. メモリ効率性 (重み: {weights['memory_efficiency_weight']:.2%})",
+             f"\n💾 3. Memory Efficiency (weight: {weights['memory_efficiency_weight']:.2%})"))
+    print(t(f"   メモリ予測比率     : {memory_ratio:.4f} ({(memory_ratio-1)*100:+.1f}%) - 40%重み",
+             f"   Memory Estimate Ratio : {memory_ratio:.4f} ({(memory_ratio-1)*100:+.1f}%) - 40% weight"))
+    print(t(f"   スピルリスク比率   : {spill_risk_ratio:.4f} ({(spill_risk_ratio-1)*100:+.1f}%) - 60%重み",
+             f"   Spill Risk Ratio     : {spill_risk_ratio:.4f} ({(spill_risk_ratio-1)*100:+.1f}%) - 60% weight"))
+    print(t(f"   → 統合比率        : {memory_efficiency_ratio:.4f} ({(memory_efficiency_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {memory_efficiency_ratio:.4f} ({(memory_efficiency_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {memory_efficiency_ratio * weights['memory_efficiency_weight']:.4f}",
+             f"   → Weighted Contribution : {memory_efficiency_ratio * weights['memory_efficiency_weight']:.4f}"))
     
     # 4. スピル管理効率比率（新規追加）
     estimated_spill_ratio = safe_ratio(optimized_metrics.get('estimated_spill_gb', 0), 
@@ -12246,12 +12266,18 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     spill_management_ratio_raw = (estimated_spill_ratio * 0.4 + memory_pressure_ratio * 0.3 + spill_probability_ratio * 0.3)
     spill_management_ratio = _clamp_ratio(spill_management_ratio_raw, lo=0.2, hi=3.0)
     
-    print(f"\n🚨 4. スピル管理効率 (重み: {weights['spill_management_weight']:.2%})")
-    print(f"   推定スピル比率     : {estimated_spill_ratio:.4f} ({(estimated_spill_ratio-1)*100:+.1f}%) - 40%重み")
-    print(f"   メモリ圧迫比率     : {memory_pressure_ratio:.4f} ({(memory_pressure_ratio-1)*100:+.1f}%) - 30%重み") 
-    print(f"   スピル確率比率     : {spill_probability_ratio:.4f} ({(spill_probability_ratio-1)*100:+.1f}%) - 30%重み")
-    print(f"   → 統合比率        : {spill_management_ratio:.4f} ({(spill_management_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {spill_management_ratio * weights['spill_management_weight']:.4f}")
+    print(t(f"\n🚨 4. スピル管理効率 (重み: {weights['spill_management_weight']:.2%})",
+             f"\n🚨 4. Spill Management Efficiency (weight: {weights['spill_management_weight']:.2%})"))
+    print(t(f"   推定スピル比率     : {estimated_spill_ratio:.4f} ({(estimated_spill_ratio-1)*100:+.1f}%) - 40%重み",
+             f"   Estimated Spill Ratio : {estimated_spill_ratio:.4f} ({(estimated_spill_ratio-1)*100:+.1f}%) - 40% weight"))
+    print(t(f"   メモリ圧迫比率     : {memory_pressure_ratio:.4f} ({(memory_pressure_ratio-1)*100:+.1f}%) - 30%重み", 
+             f"   Memory Pressure Ratio : {memory_pressure_ratio:.4f} ({(memory_pressure_ratio-1)*100:+.1f}%) - 30% weight"))
+    print(t(f"   スピル確率比率     : {spill_probability_ratio:.4f} ({(spill_probability_ratio-1)*100:+.1f}%) - 30%重み",
+             f"   Spill Probability Ratio : {spill_probability_ratio:.4f} ({(spill_probability_ratio-1)*100:+.1f}%) - 30% weight"))
+    print(t(f"   → 統合比率        : {spill_management_ratio:.4f} ({(spill_management_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {spill_management_ratio:.4f} ({(spill_management_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {spill_management_ratio * weights['spill_management_weight']:.4f}",
+             f"   → Weighted Contribution : {spill_management_ratio * weights['spill_management_weight']:.4f}"))
     
     # 5. 並列処理効率比率
     shuffle_ratio = safe_ratio(optimized_metrics['shuffle_partitions'], 
@@ -12259,10 +12285,14 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     parallelism_ratio_raw = shuffle_ratio
     parallelism_ratio = _clamp_ratio(parallelism_ratio_raw)
     
-    print(f"\n⚡ 5. 並列処理効率 (重み: {weights['parallelism_weight']:.2%})")
-    print(f"   シャッフル比率     : {shuffle_ratio:.4f} ({(shuffle_ratio-1)*100:+.1f}%)")
-    print(f"   → 統合比率        : {parallelism_ratio:.4f} ({(parallelism_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {parallelism_ratio * weights['parallelism_weight']:.4f}")
+    print(t(f"\n⚡ 5. 並列処理効率 (重み: {weights['parallelism_weight']:.2%})",
+             f"\n⚡ 5. Parallelism Efficiency (weight: {weights['parallelism_weight']:.2%})"))
+    print(t(f"   シャッフル比率     : {shuffle_ratio:.4f} ({(shuffle_ratio-1)*100:+.1f}%)",
+             f"   Shuffle Ratio       : {shuffle_ratio:.4f} ({(shuffle_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 統合比率        : {parallelism_ratio:.4f} ({(parallelism_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {parallelism_ratio:.4f} ({(parallelism_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {parallelism_ratio * weights['parallelism_weight']:.4f}",
+             f"   → Weighted Contribution : {parallelism_ratio * weights['parallelism_weight']:.4f}"))
     
     # 6. パーティション効率比率
     hash_partition_ratio = safe_ratio(optimized_metrics['hash_partitions'], 
@@ -12272,11 +12302,16 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     partitioning_efficiency_ratio_raw = (hash_partition_ratio * 0.7 + total_partition_ratio * 0.3)
     partitioning_efficiency_ratio = _clamp_ratio(partitioning_efficiency_ratio_raw)
     
-    print(f"\n🔧 6. パーティション効率 (重み: {weights['partitioning_efficiency_weight']:.2%})")
-    print(f"   ハッシュ分割比率   : {hash_partition_ratio:.4f} ({(hash_partition_ratio-1)*100:+.1f}%) - 70%重み")
-    print(f"   総分割数比率       : {total_partition_ratio:.4f} ({(total_partition_ratio-1)*100:+.1f}%) - 30%重み")
-    print(f"   → 統合比率        : {partitioning_efficiency_ratio:.4f} ({(partitioning_efficiency_ratio-1)*100:+.1f}%)")
-    print(f"   → 重み付き寄与度   : {partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']:.4f}")
+    print(t(f"\n🔧 6. パーティション効率 (重み: {weights['partitioning_efficiency_weight']:.2%})",
+             f"\n🔧 6. Partitioning Efficiency (weight: {weights['partitioning_efficiency_weight']:.2%})"))
+    print(t(f"   ハッシュ分割比率   : {hash_partition_ratio:.4f} ({(hash_partition_ratio-1)*100:+.1f}%) - 70%重み",
+             f"   Hash Partition Ratio : {hash_partition_ratio:.4f} ({(hash_partition_ratio-1)*100:+.1f}%) - 70% weight"))
+    print(t(f"   総分割数比率       : {total_partition_ratio:.4f} ({(total_partition_ratio-1)*100:+.1f}%) - 30%重み",
+             f"   Total Partition Count Ratio : {total_partition_ratio:.4f} ({(total_partition_ratio-1)*100:+.1f}%) - 30% weight"))
+    print(t(f"   → 統合比率        : {partitioning_efficiency_ratio:.4f} ({(partitioning_efficiency_ratio-1)*100:+.1f}%)",
+             f"   → Integrated Ratio  : {partitioning_efficiency_ratio:.4f} ({(partitioning_efficiency_ratio-1)*100:+.1f}%)"))
+    print(t(f"   → 重み付き寄与度   : {partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']:.4f}",
+             f"   → Weighted Contribution : {partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']:.4f}"))
     
     # 総合コスト比率（重み付き平均）
     comprehensive_cost_ratio = (
@@ -12288,7 +12323,7 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
         partitioning_efficiency_ratio * weights['partitioning_efficiency_weight']
     )
     
-    print(f"\n🎯 総合コスト比率計算:")
+    print(t(f"\n🎯 総合コスト比率計算:", f"\n🎯 Comprehensive Cost Ratio Calculation:"))
     print(f"   = {data_processing_ratio:.4f} × {weights['data_processing_weight']:.2%}")
     print(f"   + {operation_complexity_ratio:.4f} × {weights['operation_complexity_weight']:.2%}")  
     print(f"   + {memory_efficiency_ratio:.4f} × {weights['memory_efficiency_weight']:.2%}")
@@ -12299,11 +12334,14 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     
     improvement_pct = (1 - comprehensive_cost_ratio) * 100
     if improvement_pct > 0:
-        print(f"   📈 総合改善率: +{improvement_pct:.2f}%")
+        print(t(f"   📈 総合改善率: +{improvement_pct:.2f}%",
+                 f"   📈 Overall Improvement Rate: +{improvement_pct:.2f}%"))
     elif improvement_pct < 0:
-        print(f"   📉 総合悪化率: {improvement_pct:.2f}%")
+        print(t(f"   📉 総合悪化率: {improvement_pct:.2f}%",
+                 f"   📉 Overall Degradation Rate: {improvement_pct:.2f}%"))
     else:
-        print(f"   ➖ 性能等価: {improvement_pct:.2f}%")
+        print(t(f"   ➖ 性能等価: {improvement_pct:.2f}%",
+                 f"   ➖ Performance Equivalent: {improvement_pct:.2f}%"))
     
     return {
         'comprehensive_cost_ratio': comprehensive_cost_ratio,
@@ -12383,8 +12421,10 @@ def detect_join_strategy_improvement(optimized_metrics, original_metrics):
     join_improved = optimized_efficiency > original_efficiency
     
     if join_improved:
-        print(f"🔗 JOIN戦略改善検出: {original_strategy} → {optimized_strategy}")
-        print(f"   効率性スコア: {original_efficiency} → {optimized_efficiency}")
+        print(t(f"🔗 JOIN戦略改善検出: {original_strategy} → {optimized_strategy}",
+                f"🔗 JOIN Strategy Improvement Detected: {original_strategy} → {optimized_strategy}"))
+        print(t(f"   効率性スコア: {original_efficiency} → {optimized_efficiency}",
+                f"   Efficiency Score: {original_efficiency} → {optimized_efficiency}"))
     
     return join_improved
 
@@ -12513,15 +12553,21 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     MINOR_IMPROVEMENT_THRESHOLD = 0.95            # 5%以上の軽微改善
     
     print("\n" + "="*80)
-    print("🎯 パフォーマンス改善レベル判定")
+    print(t("🎯 パフォーマンス改善レベル判定", "🎯 Performance Improvement Level Judgment"))
     print("="*80)
     
-    print(f"\n📏 判定閾値 (保守的アプローチ):")
-    print(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)")
-    print(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)")
-    print(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)")  
-    print(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)")
-    print(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)")
+    print(t(f"\n📏 判定閾値 (保守的アプローチ):",
+             f"\n📏 Judgment Thresholds (Conservative Approach):"))
+    print(t(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)",
+             f"   Substantial Improvement Threshold : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%+ improvement)"))
+    print(t(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)",
+             f"   Significant Improvement Threshold : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%+ improvement)"))
+    print(t(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)",  
+             f"   Minor Improvement Threshold       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%+ improvement)"))
+    print(t(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)",
+             f"   Equivalent Performance Range     : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (within ±5%)"))
+    print(t(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)",
+             f"   Degradation Detection Threshold  : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%+ degradation)"))
     
     # スピルリスク特別判定（スピルリスクが大幅減少した場合は高評価）
     spill_improvement_factor = 1.0
@@ -12531,24 +12577,32 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     effective_spill_risk_ratio = max(0.2, min(3.0, detailed_ratios['spill_risk_ratio']))
     if effective_spill_risk_ratio < 0.5:  # 50%以上スピルリスク減少
         spill_improvement_factor = 0.95  # 5%の追加ボーナス
-        spill_bonus_text = "🚀 スピルリスク大幅減少ボーナス適用 (-5%)"
+        spill_bonus_text = t("🚀 スピルリスク大幅減少ボーナス適用 (-5%)",
+                             "🚀 Spill risk significantly reduced bonus applied (-5%)")
     elif effective_spill_risk_ratio > 2.0:  # スピルリスク倍増
         spill_improvement_factor = 1.05  # 5%のペナルティ
-        spill_bonus_text = "⚠️ スピルリスク増加ペナルティ適用 (+5%)"
+        spill_bonus_text = t("⚠️ スピルリスク増加ペナルティ適用 (+5%)",
+                             "⚠️ Spill risk increased penalty applied (+5%)")
     else:
-        spill_bonus_text = "➖ スピルリスク特別調整なし"
+        spill_bonus_text = t("➖ スピルリスク特別調整なし",
+                             "➖ No special spill risk adjustment")
     
     # スピル補正を適用した最終比率
     final_comprehensive_ratio = comprehensive_ratio * spill_improvement_factor
     
-    print(f"\n🧮 最終判定計算:")
-    print(f"   基本総合比率       : {comprehensive_ratio:.4f}")
-    print(f"   スピル調整係数     : {spill_improvement_factor:.3f}")
-    print(f"   スピル調整詳細     : {spill_bonus_text}")
-    print(f"   最終総合比率       : {final_comprehensive_ratio:.4f}")
+    print(t(f"\n🧮 最終判定計算:", f"\n🧮 Final Judgment Calculation:"))
+    print(t(f"   基本総合比率       : {comprehensive_ratio:.4f}",
+             f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}"))
+    print(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}",
+             f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}"))
+    print(t(f"   スピル調整詳細     : {spill_bonus_text}",
+             f"   Spill Adjustment Details : {spill_bonus_text}"))
+    print(t(f"   最終総合比率       : {final_comprehensive_ratio:.4f}",
+             f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}"))
     
     improvement_pct = (1 - final_comprehensive_ratio) * 100
-    print(f"   最終改善率         : {improvement_pct:+.2f}%")
+    print(t(f"   最終改善率         : {improvement_pct:+.2f}%",
+             f"   Final Improvement Rate  : {improvement_pct:+.2f}%"))
     
     # 判定結果
     judgment = {
@@ -12561,8 +12615,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     
     # 総合判定（保守的アプローチ）
     if final_comprehensive_ratio < SUBSTANTIAL_IMPROVEMENT_THRESHOLD:
-        judgment_level = "🚀 大幅改善 (SUBSTANTIAL)"
-        recommendation_text = "最適化クエリを強く推奨"
+        judgment_level = t("🚀 大幅改善 (SUBSTANTIAL)", "🚀 Substantial Improvement (SUBSTANTIAL)")
+        recommendation_text = t("最適化クエリを強く推奨", "Strongly recommend using optimized query")
         judgment.update({
             'substantial_improvement_detected': True,
             'significant_improvement_detected': True,
@@ -12573,8 +12627,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             'improvement_level': 'substantial'
         })
     elif final_comprehensive_ratio < COMPREHENSIVE_IMPROVEMENT_THRESHOLD:
-        judgment_level = "✅ 重要改善 (SIGNIFICANT)"
-        recommendation_text = "最適化クエリを推奨"
+        judgment_level = t("✅ 重要改善 (SIGNIFICANT)", "✅ Significant Improvement (SIGNIFICANT)")
+        recommendation_text = t("最適化クエリを推奨", "Recommend using optimized query")
         judgment.update({
             'substantial_improvement_detected': False,
             'significant_improvement_detected': True,
@@ -12585,8 +12639,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             'improvement_level': 'significant'
         })
     elif final_comprehensive_ratio < MINOR_IMPROVEMENT_THRESHOLD:
-        judgment_level = "📈 軽微改善 (MINOR)"
-        recommendation_text = "最適化クエリを慎重に検討"
+        judgment_level = t("📈 軽微改善 (MINOR)", "📈 Minor Improvement (MINOR)")
+        recommendation_text = t("最適化クエリを慎重に検討", "Carefully consider using optimized query")
         judgment.update({
             'substantial_improvement_detected': False,
             'significant_improvement_detected': False,
@@ -12597,8 +12651,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             'improvement_level': 'minor'
         })
     elif final_comprehensive_ratio > COMPREHENSIVE_DEGRADATION_THRESHOLD:
-        judgment_level = "❌ パフォーマンス悪化 (DEGRADED)"
-        recommendation_text = "元クエリを使用 (安全性優先)"
+        judgment_level = t("❌ パフォーマンス悪化 (DEGRADED)", "❌ Performance Degraded (DEGRADED)")
+        recommendation_text = t("元クエリを使用 (安全性優先)", "Use original query (prioritize safety)")
         judgment.update({
             'substantial_improvement_detected': False,
             'significant_improvement_detected': False,
@@ -12613,8 +12667,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         join_strategy_improved = detect_join_strategy_improvement(optimized_metrics, original_metrics)
         
         if join_strategy_improved:
-            judgment_level = "✅ JOIN戦略改善 (JOIN_OPTIMIZED)"
-            recommendation_text = "最適化クエリを推奨 (JOIN戦略改善)"
+            judgment_level = t("✅ JOIN戦略改善 (JOIN_OPTIMIZED)", "✅ JOIN Strategy Improved (JOIN_OPTIMIZED)")
+            recommendation_text = t("最適化クエリを推奨 (JOIN戦略改善)", "Recommend using optimized query (JOIN strategy improved)")
             judgment.update({
                 'substantial_improvement_detected': False,
                 'significant_improvement_detected': True,  # JOIN改善として扱う
@@ -12625,8 +12679,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 'improvement_level': 'join_optimized'
             })
         else:
-            judgment_level = "➖ 等価性能 (EQUIVALENT)"
-            recommendation_text = "元クエリを使用 (変化なし)"
+            judgment_level = t("➖ 等価性能 (EQUIVALENT)", "➖ Equivalent Performance (EQUIVALENT)")
+            recommendation_text = t("元クエリを使用 (変化なし)", "Use original query (no significant change)")
             judgment.update({
                 'substantial_improvement_detected': False,
                 'significant_improvement_detected': False,
@@ -12637,10 +12691,13 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 'improvement_level': 'equivalent'
             })
     
-    print(f"\n🎯 最終判定結果:")
-    print(f"   判定レベル         : {judgment_level}")
-    print(f"   推奨アクション     : {recommendation_text}")
-    print(f"   判定根拠           : 最終比率 {final_comprehensive_ratio:.4f} による判定")
+    print(t(f"\n🎯 最終判定結果:", f"\n🎯 Final Judgment Result:"))
+    print(t(f"   判定レベル         : {judgment_level}",
+             f"   Judgment Level      : {judgment_level}"))
+    print(t(f"   推奨アクション     : {recommendation_text}",
+             f"   Recommended Action  : {recommendation_text}"))
+    print(t(f"   判定根拠           : 最終比率 {final_comprehensive_ratio:.4f} による判定",
+             f"   Judgment Basis      : Determined by final ratio {final_comprehensive_ratio:.4f}"))
     
     # 📊 ファイル出力用の詳細ログを生成
     try:
@@ -12650,39 +12707,53 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         
         with open(log_filename, 'w', encoding='utf-8') as f:
             f.write("=" * 80 + "\n")
-            f.write("📊 重み付けシステム詳細分析ログ\n")
+            f.write(t("📊 重み付けシステム詳細分析ログ\n",
+                      "📊 Weighted System Detailed Analysis Log\n"))
             f.write("=" * 80 + "\n\n")
             
-            f.write("🎯 メトリクス重み設定:\n")
+            f.write(t("🎯 メトリクス重み設定:\n",
+                      "🎯 Metric Weight Settings:\n"))
             for key, weight in cost_analysis['weights_used'].items():
                 category = key.replace('_weight', '').replace('_', ' ').title()
                 f.write(f"   {category:30} : {weight:5.2%} ({weight:.3f})\n")
             
-            f.write(f"\n📊 コンポーネント比率分析:\n")
+            f.write(t(f"\n📊 コンポーネント比率分析:\n",
+                      f"\n📊 Component Ratio Analysis:\n"))
             for key, ratio in component_ratios.items():
                 category = key.replace('_', ' ').title()
                 f.write(f"   {category:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
             
-            f.write(f"\n🧮 最終判定計算:\n")
-            f.write(f"   基本総合比率       : {comprehensive_ratio:.4f}\n")
-            f.write(f"   スピル調整係数     : {spill_improvement_factor:.3f}\n")
-            f.write(f"   最終総合比率       : {final_comprehensive_ratio:.4f}\n")
-            f.write(f"   最終改善率         : {improvement_pct:+.2f}%\n")
+            f.write(t(f"\n🧮 最終判定計算:\n",
+                      f"\n🧮 Final Judgment Calculation:\n"))
+            f.write(t(f"   基本総合比率       : {comprehensive_ratio:.4f}\n",
+                      f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}\n"))
+            f.write(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}\n",
+                      f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}\n"))
+            f.write(f"   最終総合比率       : {final_comprehensive_ratio:.4f}\n" if globals().get('OUTPUT_LANGUAGE','ja')=='ja' else f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}\n")
+            f.write(t(f"   最終改善率         : {improvement_pct:+.2f}%\n",
+                      f"   Final Improvement Rate  : {improvement_pct:+.2f}%\n"))
             
-            f.write(f"\n🎯 最終判定結果:\n")
-            f.write(f"   判定レベル         : {judgment_level}\n")
-            f.write(f"   推奨アクション     : {recommendation_text}\n")
-            f.write(f"   判定根拠           : 最終比率 {final_comprehensive_ratio:.4f} による判定\n")
+            f.write(t(f"\n🎯 最終判定結果:\n",
+                      f"\n🎯 Final Judgment Result:\n"))
+            f.write(t(f"   判定レベル         : {judgment_level}\n",
+                      f"   Judgment Level      : {judgment_level}\n"))
+            f.write(t(f"   推奨アクション     : {recommendation_text}\n",
+                      f"   Recommended Action  : {recommendation_text}\n"))
+            f.write(t(f"   判定根拠           : 最終比率 {final_comprehensive_ratio:.4f} による判定\n",
+                      f"   Judgment Basis      : Determined by final ratio {final_comprehensive_ratio:.4f}\n"))
             
-            f.write(f"\n📋 詳細メトリクス:\n")
+            f.write(t(f"\n📋 詳細メトリクス:\n",
+                      f"\n📋 Detailed Metrics:\n"))
             for key, ratio in detailed_ratios.items():
                 metric_name = key.replace('_', ' ').title()
                 f.write(f"   {metric_name:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
         
-        print(f"\n💾 詳細ログファイル保存: {log_filename}")
+        print(t(f"\n💾 詳細ログファイル保存: {log_filename}",
+                 f"\n💾 Detailed log file saved: {log_filename}"))
         
     except Exception as e:
-        print(f"⚠️ ログファイル保存エラー: {str(e)}")
+        print(t(f"⚠️ ログファイル保存エラー: {str(e)}",
+                 f"⚠️ Log file save error: {str(e)}"))
     
     print("="*80)
     
