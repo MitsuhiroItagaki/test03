@@ -12202,11 +12202,15 @@ def estimate_spill_risk(metrics):
     EXPLAIN COSTのメトリクスからスピルリスクを推定（強化版）
     """
     try:
-        # 基本メモリ圧迫要因
+        # 基本メモリ圧迫要因（GB/TBなどのスケールでオーダー1程度に収める）
         memory_pressure_factor = metrics['memory_estimates'] / (1024**3) if metrics['memory_estimates'] > 0 else 0  # GB単位
         join_complexity_factor = metrics['join_operations'] * 0.1
         data_volume_factor = metrics['total_size_bytes'] / (1024**4) if metrics['total_size_bytes'] > 0 else 0  # TB単位
-        partition_efficiency_factor = 1.0 / max(metrics['total_partitions'], 1) * 1000  # パーティション数が少ないとリスク増
+        
+        # JOIN戦略とSinglePartitionの特例検出
+        join_strategy = metrics.get('join_strategy', 'unknown')
+        has_single_partition = bool(metrics.get('has_single_partition', False))
+        is_broadcast_or_single = (join_strategy == 'broadcast') or has_single_partition
         
         # JOIN操作によるメモリ推定（強化）
         join_memory_risk = 0
@@ -12222,14 +12226,31 @@ def estimate_spill_risk(metrics):
             million_rows = metrics['total_rows'] / 1000000
             aggregation_risk = min(million_rows * 0.1, 2.0)  # 最大2.0に制限
         
-        # パーティションスキューリスク（シャッフルパーティション数ベース）
-        skew_risk = 0
-        if metrics.get('shuffle_partitions', 0) > 0:
-            # シャッフルパーティションが少ないとスキューリスク増
-            if metrics['shuffle_partitions'] < 100:
-                skew_risk = 1.0 / max(metrics['shuffle_partitions'], 1) * 20
+        # パーティション効率リスク（正規化・ブロードキャスト/SinglePartition特例）
+        if is_broadcast_or_single:
+            partition_efficiency_factor = 0.0
+        else:
+            effective_partitions = int(metrics.get('shuffle_partitions', 0)) + int(metrics.get('hash_partitions', 0))
+            target_min = 200  # 目安（Spark既定値相当）
+            if effective_partitions <= 0:
+                partition_efficiency_factor = 0.0  # 情報不足は中立扱い
+            else:
+                shortage = max(0, target_min - effective_partitions)
+                partition_efficiency_factor = min(1.0, shortage / float(target_min))  # 0.0〜1.0に正規化
         
-        # 総合スピルリスクスコア
+        # パーティションスキューリスク（シャッフルパーティション数ベース、ブロードキャスト/SinglePartition特例）
+        if is_broadcast_or_single:
+            skew_risk = 0.0
+        else:
+            shuffle_parts = int(metrics.get('shuffle_partitions', 0))
+            if shuffle_parts <= 0:
+                skew_risk = 0.0
+            else:
+                min_parallel = 100
+                deficit = max(0, min_parallel - shuffle_parts)
+                skew_risk = min(1.0, deficit / float(min_parallel))
+        
+        # 総合スピルリスクスコア（各要因はオーダー1に抑制）
         spill_risk_score = (
             memory_pressure_factor * 0.25 +
             join_complexity_factor * 0.20 +
@@ -12251,6 +12272,7 @@ def estimate_spill_risk(metrics):
         metrics['estimated_spill_gb'] = estimated_spill_gb
         metrics['spill_probability'] = min(spill_risk_score * 0.3, 1.0)  # 確率は最大100%
         metrics['memory_pressure_score'] = memory_pressure_factor + join_memory_risk
+        metrics['broadcast_or_single'] = is_broadcast_or_single
         
         return spill_risk_score
         
@@ -12986,6 +13008,16 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             metrics['join_operations'] = len(re.findall(r'Join|HashJoin|SortMergeJoin', explain_cost_text, re.IGNORECASE))
             metrics['exchange_count'] = len(re.findall(r'\bExchange\b|\bShuffle\b', explain_cost_text, re.IGNORECASE))
             
+            # JOIN戦略を検出（Broadcast/Shuffle/SortMerge/Unknown）
+            if re.search(r'PhotonBroadcastHashJoin|BroadcastHashJoin', explain_cost_text, re.IGNORECASE):
+                metrics['join_strategy'] = 'broadcast'
+            elif re.search(r'PhotonShuffledHashJoin|ShuffledHashJoin', explain_cost_text, re.IGNORECASE):
+                metrics['join_strategy'] = 'shuffle'
+            elif re.search(r'SortMergeJoin', explain_cost_text, re.IGNORECASE):
+                metrics['join_strategy'] = 'sortmerge'
+            else:
+                metrics['join_strategy'] = 'unknown'
+            
             # 従来のシャッフルパーティション数
             shuffle_matches = re.findall(r'partitions?["\s]*[:=]\s*([0-9]+)', explain_cost_text, re.IGNORECASE)
             for match in shuffle_matches:
@@ -13064,9 +13096,22 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                         except (ValueError, IndexError):
                             continue
             
+            # Photonの物理プランに表示される 'SinglePartition' キーワードも検出
+            has_single_partition_photon = bool(re.search(r'\bSinglePartition\b', explain_cost_text, re.IGNORECASE))
+            if has_single_partition_photon and not any(d.get('type') == 'single' for d in partition_details):
+                partition_details.append({
+                    'type': 'single',
+                    'columns': [],
+                    'column_count': 0,
+                    'partition_count': 1,
+                    'full_expression': 'SinglePartition'
+                })
+                other_partitions += 1
+            
             metrics['hash_partitions'] = total_hash_partitions
             metrics['total_partitions'] = total_hash_partitions + other_partitions + metrics['shuffle_partitions']
             metrics['partition_details'] = partition_details
+            metrics['has_single_partition'] = any(d.get('type') == 'single' for d in partition_details)
             
             # スピルリスク推定
             metrics['spill_risk_score'] = estimate_spill_risk(metrics)
