@@ -525,13 +525,76 @@ def load_applied_optimizations_from_debug_logs(max_files: int = 10, max_items: i
 
         body = "\n".join([f"- {item}" for item in applied_items]) + "\n\n"
         return heading + body
-
+ 
     except Exception as e:
         print(f"⚠️ Failed to load applied optimizations from debug logs: {e}")
         return ""
+ 
+def _infer_applied_optimizations_from_queries(original_sql: str, optimized_sql: str) -> list[str]:
+    items: list[str] = []
+    try:
+        ol = original_sql.lower()
+        nl = optimized_sql.lower()
+        if 'shuffle_hash' in ol and 'shuffle_hash' not in nl:
+            items.append('不要なSHUFFLE_HASHヒントの削除（Sparkの自動最適化に委任）')
+        if 'broadcast' in ol and 'broadcast' not in nl:
+            items.append('BROADCASTヒントの削除（自動最適化に委任）')
+        if 'select *' in ol and 'select *' not in nl:
+            items.append('必要なカラムのみを選択するプロジェクション最適化')
+        if 'with ' in nl and 'with ' not in ol:
+            items.append('CTEを活用した段階的処理による実行計画の最適化')
+        if 'with ' in nl and 'order by' in nl and 'limit' in nl and 'join' in nl:
+            items.append('ORDER BY + LIMITの効率化（先にLIMITを適用してからJOIN）')
+        else:
+            if 'order by' in nl and ('limit' in nl or 'top' in nl):
+                items.append('ORDER BY句の最適化（Top-N処理の効率化）')
+        if 'with ' in nl and 'limit' in nl and 'join' in nl:
+            items.append('JOIN順序の最適化（小テーブルから大テーブルへの結合）')
+    except Exception:
+        pass
+    seen = set()
+    unique_items = []
+    for it in items:
+        if it not in seen:
+            seen.add(it)
+            unique_items.append(it)
+    return unique_items
+ 
+def _read_latest_sql_pair() -> tuple[str, str]:
+    import glob, os
+    original_files = sorted(glob.glob('output_original_query_*.sql'), key=os.path.getmtime, reverse=True)
+    optimized_files = sorted(glob.glob('output_optimized_query_*.sql'), key=os.path.getmtime, reverse=True)
+    if not original_files or not optimized_files:
+        return "", ""
+    try:
+        with open(original_files[0], 'r', encoding='utf-8') as f:
+            original_sql = f.read()
+        with open(optimized_files[0], 'r', encoding='utf-8') as f:
+            optimized_sql = f.read()
+        return original_sql, optimized_sql
+    except Exception:
+        return "", ""
+ 
+def get_applied_optimizations_section(max_items: int = 15) -> str:
+    section_items: list[str] = []
+    try:
+        original_sql, optimized_sql = _read_latest_sql_pair()
+        if original_sql and optimized_sql:
+            section_items.extend(_infer_applied_optimizations_from_queries(original_sql, optimized_sql))
+    except Exception:
+        pass
+    if not section_items:
+        return load_applied_optimizations_from_debug_logs(max_items=max_items)
+    section_items = section_items[:max_items]
+    if OUTPUT_LANGUAGE == 'ja':
+        heading = '## 🛠️ 実際に適用した最適化手法\n\n'
+    else:
+        heading = '## 🛠️ Applied Optimization Techniques\n\n'
+    body = '\n'.join([f'- {s}' for s in section_items]) + '\n\n'
+    return heading + body
 
 # COMMAND ----------
-
+ 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
     """
     Save queries under optimization attempt by attempt when DEBUG_ENABLED=Y
@@ -10651,8 +10714,8 @@ The following shows the trials executed during the optimization process and the 
     if optimization_points_summary:
         report += "\n" + optimization_points_summary
     
-    # 🛠️ デバッグログから実際に適用した最適化手法を抽出して追記
-    applied_optimizations_section = load_applied_optimizations_from_debug_logs()
+    # 🛠️ 実際に適用した最適化手法を追記（SQL差分を優先、なければデバッグログ/JSON）
+    applied_optimizations_section = get_applied_optimizations_section()
     if applied_optimizations_section:
         report += "\n" + applied_optimizations_section
     
