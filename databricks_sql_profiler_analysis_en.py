@@ -13243,6 +13243,13 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                             'stage2': stage2_result,
                             'stage3': stage3_result
                         }
+                    },
+                    'detailed_analysis': {
+                        'memory_ratio': 1.0,
+                        'cpu_ratio': 1.0,
+                        'io_ratio': 1.0,
+                        'fallback_mode': True,
+                        'note': 'Stage 1+2 combined fallback - using safe default values'
                     }
                 }
                 
@@ -13268,6 +13275,13 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                             'stage2': stage2_result,
                             'stage3': stage3_result
                         }
+                    },
+                    'detailed_analysis': {
+                        'memory_ratio': 1.0,
+                        'cpu_ratio': 1.0,
+                        'io_ratio': 1.0,
+                        'fallback_mode': True,
+                        'note': 'Stage 1-only fallback - using safe default values'
                     }
                 }
             
