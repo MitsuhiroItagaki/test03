@@ -9710,20 +9710,9 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
 
 {summary_results['explain_summary']}
 
-### 💰 統計ベース最適化の効果
-
-統計情報を活用することで以下の改善効果が期待できます：
-
-| 項目 | 従来（推測ベース） | 統計ベース | 改善効果 |
-|------|-------------------|-----------|----------|
-| BROADCAST判定精度 | 約60% | 約95% | **+35%** |
-| スピル予測精度 | 約40% | 約85% | **+45%** |
-| パーティション最適化 | 約50% | 約90% | **+40%** |
-| 全体最適化効果 | 平均30%改善 | 平均60%改善 | **+30%** |
-
-### 🎯 統計情報概要
-
-統計情報による最適化が実行されました（詳細はDEBUG_ENABLED='Y'で確認可能）。
+            ### 🎯 統計情報概要
+            
+            統計情報による最適化が実行されました（詳細はDEBUG_ENABLED='Y'で確認可能）。
 
 """
             explain_cost_section = ""  # 統合セクションなので個別セクションは不要
@@ -9739,20 +9728,9 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
 
 {summary_results['explain_summary']}
 
-### 💰 Effects of Statistics-Based Optimization
-
-The following improvement effects can be expected by leveraging statistical information:
-
-| Item | Traditional (Guess-based) | Statistics-based | Improvement |
-|------|---------------------------|------------------|-------------|
-| BROADCAST Judgment Accuracy | ~60% | ~95% | **+35%** |
-| Spill Prediction Accuracy | ~40% | ~85% | **+45%** |
-| Partition Optimization | ~50% | ~90% | **+40%** |
-| Overall Optimization Effect | Average 30% improvement | Average 60% improvement | **+30%** |
-
-### 🎯 Statistical Information Overview
-
-Statistical optimization has been executed (details available with DEBUG_ENABLED='Y').
+            ### 🎯 Statistical Information Overview
+            
+            Statistical optimization has been executed (details available with DEBUG_ENABLED='Y').
 
 """
             explain_cost_section = ""  # Integrated section, so no separate section needed
@@ -9951,6 +9929,7 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
             else:
                 final_selection = f"試行{best_attempt_number}番"
                 selection_reason = "コスト効率が最も良い試行を選択"
+                adoption_sentence = f"- 採用文: 最もコストが低下したのは第{best_attempt_number}回の施行であり、本レポートでは第{best_attempt_number}回の最適化案を採用した。"
             
             # 詳細試行履歴を生成
             detailed_trial_history = format_trial_history_summary(optimization_attempts, 'ja')
@@ -9962,9 +9941,10 @@ Statistical optimization has been executed (details available with DEBUG_ENABLED
 - 試行回数: {total_attempts}回実行
 - 最終選択: {final_selection}
 - 選択理由: {selection_reason}
-
+{adoption_sentence}
+ 
 {detailed_trial_history}
-
+ 
 **🏆 選択された最適化の効果:**
 - コスト削減率: {cost_improvement}% (EXPLAIN COST比較)
 - メモリ効率改善: {memory_improvement}% (統計比較)
@@ -10204,9 +10184,11 @@ The following topics are analyzed for process evaluation:
                     selection_reason_en += f"\n- 📄 Reference file: {latest_sql_filename} (optimization trial result)"
                 else:
                     selection_reason_en += "\n- 📄 Original query: Extracted from profiler data"
+                adoption_sentence_en = ""
             else:
                 final_selection_en = f"Trial {best_attempt_number}"
                 selection_reason_en = "Selected the trial with the best cost efficiency"
+                adoption_sentence_en = f"- Adoption statement: The lowest cost was achieved in attempt {best_attempt_number}, and this report adopts the optimization plan from attempt {best_attempt_number}."
             
             # 詳細試行履歴を生成（英語版）
             detailed_trial_history_en = format_trial_history_summary(optimization_attempts, 'en')
@@ -10218,9 +10200,10 @@ The following shows the trials executed during the optimization process and the 
 - Trial count: {total_attempts} attempts executed
 - Final selection: {final_selection_en}
 - Selection reason: {selection_reason_en}
-
+{adoption_sentence_en}
+ 
 {detailed_trial_history_en}
-
+ 
 **🏆 Selected Optimization Effects:**
 - Cost reduction rate: {cost_improvement}% (EXPLAIN COST comparison)
 - Memory efficiency improvement: {memory_improvement}% (statistics comparison)
@@ -10452,6 +10435,7 @@ def refine_report_with_llm(raw_report: str, query_id: str) -> str:
 - 与えられた生レポートの事実以外を新規に追加しない（幻覚を禁止）
 - 数値は元の値を保持し、誤った再計算をしない
 - 主要指標テーブルにPhoton利用率の評価行を必ず含める
+- 「統計ベース最適化効果」やそれに準じる効果比較表は出力しない（見出し、列名、数値例のいずれも禁止）
 
 【入力レポート】
 ```
@@ -10478,6 +10462,7 @@ As a technical document editor, refine the Databricks SQL performance analysis r
 - Do not add facts not present in the raw report (no hallucinations)
 - Preserve numeric values exactly
 - Include a Photon utilization evaluation row in the KPI table
+- Do not include the "Effects of Statistics-Based Optimization" table or any similar comparative effect tables (prohibit related headings, columns, and example numbers)
 
 [Input Report]
 ```
