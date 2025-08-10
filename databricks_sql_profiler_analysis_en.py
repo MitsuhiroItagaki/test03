@@ -466,6 +466,21 @@ def load_applied_optimizations_from_debug_logs(max_files: int = 10, max_items: i
             re.compile(r'^\s*(\*{0,2})?\s*(🎯\s*)?Applied Optimization Techniques\s*(\*{0,2})?\s*[:：]?\s*$', re.IGNORECASE),
         ]
 
+        # Prefer sidecar JSON first
+        json_pattern = os.path.join(os.getcwd(), "debug_trial_*.json")
+        json_files = glob.glob(json_pattern)
+        json_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        json_files = json_files[:max_files]
+        for jf in json_files:
+            try:
+                import json
+                with open(jf, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for item in (data.get('applied_optimizations') or []):
+                    _push_unique(str(item))
+            except Exception as je:
+                print(f"⚠️ Failed to read sidecar JSON {jf}: {je}")
+
         for file_path in target_files:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -570,6 +585,46 @@ def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(full_content)
         
+        # Sidecar JSON: extract applied optimizations if present and save
+        try:
+            import re, json, os
+            applied = []
+            lines = query.splitlines()
+            header_patterns = [
+                re.compile(r'^\s*(\*{0,2})?\s*(🎯\s*)?実際に適用した最適化手法\s*(\*{0,2})?\s*[:：]?\s*$', re.UNICODE),
+                re.compile(r'^\s*(\*{0,2})?\s*(🎯\s*)?Applied Optimization Techniques\s*(\*{0,2})?\s*[:：]?\s*$', re.IGNORECASE),
+            ]
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                if any(pat.match(line.strip()) for pat in header_patterns):
+                    j = i + 1
+                    while j < len(lines):
+                        cur = lines[j].rstrip()
+                        if not cur.strip():
+                            break
+                        if cur.lstrip().startswith("**") or cur.lstrip().startswith("##") or cur.lstrip().startswith("```"):
+                            break
+                        if cur.lstrip().startswith("-"):
+                            bullet = cur.lstrip()[1:].strip()
+                            if bullet:
+                                applied.append(bullet)
+                        j += 1
+                    break
+                i += 1
+            sidecar = {
+                "trial_number": attempt_num,
+                "trial_type": trial_type,
+                "query_id": query_id,
+                "generated_time": timestamp,
+                "applied_optimizations": applied,
+            }
+            json_name = filename.replace('.txt', '.json')
+            with open(json_name, 'w', encoding='utf-8') as jf:
+                json.dump(sidecar, jf, ensure_ascii=False, indent=2)
+        except Exception as _json_err:
+            print(f"⚠️ Failed to write sidecar JSON for {filename}: {_json_err}")
+
         print(f"🐛 DEBUG save completed: {filename} (attempt {attempt_num}: {trial_type})")
         return filename
         
