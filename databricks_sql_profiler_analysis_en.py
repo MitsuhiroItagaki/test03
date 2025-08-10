@@ -9926,6 +9926,7 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
                     selection_reason += f"\n- 📄 参考ファイル: {latest_sql_filename}（最適化試行結果）"
                 else:
                     selection_reason += "\n- 📄 元のクエリ: プロファイラーデータから抽出"
+                adoption_sentence = ""
             else:
                 final_selection = f"試行{best_attempt_number}番"
                 selection_reason = "コスト効率が最も良い試行を選択"
