@@ -499,7 +499,7 @@ MAX_RETRIES = 3
 # - 2nd attempt and beyond: Corrected query generation and verification based on degradation cause analysis
 # - When maximum attempts reached: Use original query
 # Note: This is a separate parameter from syntax error correction (MAX_RETRIES)
-MAX_OPTIMIZATION_ATTEMPTS = 3
+MAX_OPTIMIZATION_ATTEMPTS = 1
 
 # 💡 Usage examples:
 # OUTPUT_LANGUAGE = 'ja'  # Output files in Japanese
@@ -15584,8 +15584,8 @@ elif original_query_for_explain and original_query_for_explain.strip():
             if 'plan_lines' in original_explain_result:
                 print(f"📊 Original query execution plan lines: {original_explain_result['plan_lines']:,}")
             
-            # 🚀 Step 2: New iterative optimization process: up to 3 improvement attempts with degradation cause analysis
-            print("\n📋 Step 2: Iterative LLM optimization & performance degradation analysis (max 3 improvement attempts)")
+                        # 🚀 Step 2: New iterative optimization process: up to configurable improvement attempts with degradation cause analysis
+            print(f"\n📋 Step 2: Iterative LLM optimization & performance degradation analysis (max {globals().get('MAX_OPTIMIZATION_ATTEMPTS', 3)} improvement attempts)")
             print("-" * 60)
             max_optimization_attempts = globals().get('MAX_OPTIMIZATION_ATTEMPTS', 3)
             retry_result = execute_iterative_optimization_with_degradation_analysis(
