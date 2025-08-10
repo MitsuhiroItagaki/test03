@@ -10422,85 +10422,8 @@ The following shows the trials executed during the optimization process and the 
         for jp_text, en_text in translation_map.items():
             optimization_strategy_en = optimization_strategy_en.replace(jp_text, en_text)
         
-        # EXPLAIN要約ファイルの読み込みと追加（動的に最新ファイルを検索）
+        # EXPLAIN要約（メモリ経由に統一: ファイル依存を撤廃）
         explain_summary_section = ""
-        try:
-            # 🚀 最適化成功時はオリジナル要約ファイルの検索をスキップ（エラーリスク排除）
-            optimized_files = glob.glob("output_explain_summary_optimized_*.md")
-            
-            if optimization_success is True:
-                # 最適化成功時はオリジナルファイルが生成されないため、最適化ファイルのみ検索
-                all_explain_files = optimized_files
-                print("💰 Skipping original summary file search (optimization succeeded - cost reduction)")
-            else:
-                # 通常は両方のパターンを検索
-                original_files = glob.glob("output_explain_summary_original_*.md")
-                all_explain_files = optimized_files + original_files
-            
-            if all_explain_files:
-                # ファイル作成時刻で最新のファイルを選択（より確実）
-                import os
-                latest_explain_summary = max(all_explain_files, key=os.path.getctime)
-                file_age = os.path.getctime(latest_explain_summary)
-                
-                print(f"🔍 Found {len(all_explain_files)} EXPLAIN summary files:")
-                for f in sorted(all_explain_files, key=os.path.getctime, reverse=True):
-                    age = os.path.getctime(f)
-                    status = "📍 SELECTED" if f == latest_explain_summary else "  "
-                    print(f"   {status} {f} (created: {os.path.getctime(f)})")
-                
-                # ファイル内容を読み込み
-                with open(latest_explain_summary, 'r', encoding='utf-8') as f:
-                    explain_content = f.read()
-                
-                # 英語版に翻訳
-                explain_content_en = translate_explain_summary_to_english(explain_content)
-                
-                # ファイルタイプを判定（optimized/original）
-                file_type = "Optimized" if "optimized" in latest_explain_summary else "Original"
-                
-                explain_summary_section = f"""
-### 📋 Current Query Explain Output ({file_type} Query)
-
-> **Source File**: `{latest_explain_summary}`  
-> **Analysis Type**: {file_type} query execution plan analysis
-
-{explain_content_en}
-
-"""
-                print(f"✅ EXPLAIN summary integrated: {latest_explain_summary} ({file_type})")
-            else:
-                print("⚠️ No EXPLAIN summary files found (searched: output_explain_summary_*.md)")
-                # EXPLAIN実行が無効な場合の説明を追加
-                explain_summary_section = f"""
-### 📋 Current Query Explain Output
-
-⚠️ **EXPLAIN analysis not available**
-
-No EXPLAIN summary files were found. This could be due to:
-- EXPLAIN_ENABLED setting is 'N' (disabled)
-- EXPLAIN execution failed or was skipped
-- Files haven't been generated yet for this query
-
-To enable EXPLAIN analysis, set `EXPLAIN_ENABLED = 'Y'` before running the analysis.
-
-"""
-        except Exception as e:
-            print(f"⚠️ Error loading EXPLAIN summary: {str(e)}")
-            explain_summary_section = f"""
-### 📋 Current Query Explain Output
-
-❌ **Error loading EXPLAIN analysis**
-
-An error occurred while loading EXPLAIN summary files: `{str(e)}`
-
-Please check:
-- File permissions and accessibility
-- EXPLAIN_ENABLED setting
-- Query execution status
-
-"""
-
         report += f"""
 ## 🚀 4. SQL Optimization Analysis Results
 
@@ -10516,7 +10439,7 @@ Please check:
 
 {formatted_sql_content}
 
-{explain_summary_section}### 🔍 5. Performance Verification Results
+### 🔍 5. Performance Verification Results
 
 {generate_performance_comparison_section(performance_comparison, language='en')}
 
