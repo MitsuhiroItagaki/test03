@@ -421,6 +421,96 @@ def load_optimization_points_summary() -> str:
 
 # === End of Query Optimization Points Extraction Functions ===
 
+
+def load_applied_optimizations_from_debug_logs(max_files: int = 10, max_items: int = 15) -> str:
+    """
+    debug_trial_*.txt から「🎯 実際に適用した最適化手法」セクションの箇条書きを抽出し、
+    最終レポートに追記するためのMarkdown文字列を返す。
+
+    Args:
+        max_files: 解析対象とする最新ファイル数
+        max_items: リストアップする最大項目数（重複除去後）
+
+    Returns:
+        str: 見出し付きのMarkdownセクション。抽出できなければ空文字。
+    """
+    try:
+        import glob
+        import os
+
+        pattern = os.path.join(os.getcwd(), "debug_trial_*.txt")
+        files = glob.glob(pattern)
+
+        if not files:
+            return ""
+
+        # 新しい順に並べ替え、最大 max_files 件に制限
+        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        target_files = files[:max_files]
+
+        applied_items = []
+        seen = set()
+
+        def _push_unique(item: str):
+            normalized = item.strip()
+            if not normalized:
+                return
+            if normalized in seen:
+                return
+            seen.add(normalized)
+            applied_items.append(normalized)
+
+        header_prefix = "**🎯 実際に適用した最適化手法**"
+
+        for file_path in target_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.read().splitlines()
+
+                i = 0
+                while i < len(lines):
+                    line = lines[i]
+                    if line.strip().startswith(header_prefix):
+                        # 次行から箇条書きを収集
+                        j = i + 1
+                        while j < len(lines):
+                            cur = lines[j].rstrip()
+                            # セクション終端条件: 空行、次の見出し、コードブロック
+                            if not cur.strip():
+                                break
+                            if cur.lstrip().startswith("**") or cur.lstrip().startswith("##") or cur.lstrip().startswith("```"):
+                                break
+                            if cur.lstrip().startswith("-"):
+                                # 先頭の「- 」を除去
+                                bullet = cur.lstrip()[1:].strip()
+                                _push_unique(bullet)
+                            j += 1
+                        # 続行して他ファイルも処理
+                        i = j
+                    else:
+                        i += 1
+            except Exception as inner_e:
+                print(f"⚠️ Failed to parse {file_path}: {inner_e}")
+
+        if not applied_items:
+            return ""
+
+        # 出力言語に応じた見出し（本文はデバッグ出力準拠の日本語を保持）
+        if OUTPUT_LANGUAGE == 'ja':
+            heading = "## 🛠️ 実際に適用した最適化手法\n\n"
+        else:
+            heading = "## 🛠️ Applied Optimization Techniques\n\n"
+
+        # 件数制限
+        applied_items = applied_items[:max_items]
+
+        body = "\n".join([f"- {item}" for item in applied_items]) + "\n\n"
+        return heading + body
+
+    except Exception as e:
+        print(f"⚠️ Failed to load applied optimizations from debug logs: {e}")
+        return ""
+
 # COMMAND ----------
 
 def save_debug_query_trial(query: str, attempt_num: int, trial_type: str, query_id: str = None, error_info: str = None) -> str:
@@ -10501,6 +10591,11 @@ The following shows the trials executed during the optimization process and the 
     optimization_points_summary = load_optimization_points_summary()
     if optimization_points_summary:
         report += "\n" + optimization_points_summary
+    
+    # 🛠️ デバッグログから実際に適用した最適化手法を抽出して追記
+    applied_optimizations_section = load_applied_optimizations_from_debug_logs()
+    if applied_optimizations_section:
+        report += "\n" + applied_optimizations_section
     
     return report
 
