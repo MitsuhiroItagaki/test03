@@ -11306,38 +11306,11 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     
     print(f"✅ Report file saving completed: {report_filename}")
     
-    # 分析結果を別ファイルに保存（新機能：DEBUG_ENABLED='Y'の場合のみ）
-    analysis_filename = None
-    debug_enabled = globals().get('DEBUG_ENABLED', 'N')
-    
-    if analysis_content and len(analysis_content.strip()) > 100 and debug_enabled.upper() == 'Y':
-        analysis_filename = f"output_optimization_analysis_{timestamp}.md"
-        try:
-            with open(analysis_filename, 'w', encoding='utf-8') as f:
-                f.write(f"# SQL最適化分析結果\n")
-                f.write(f"## ファイル情報\n")
-                f.write(f"- 生成日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"- 元クエリID: {query_id}\n")
-                f.write(f"- 最適化SQLファイル: {optimized_filename}\n")
-                f.write(f"- 詳細レポート: {report_filename}\n\n")
-                f.write("---\n\n")
-                f.write(analysis_content)
-            
-            print(f"✅ Analysis file saving completed: {analysis_filename}")
-        except Exception as e:
-            print(f"⚠️ Analysis file saving failed: {str(e)}")
-            analysis_filename = None
-    elif debug_enabled.upper() != 'Y':
-        print(f"🐛 Analysis file saving skipped (DEBUG_ENABLED={debug_enabled})")
-    
-    # Output file results (analysis file added to results)
+    # Output file results (analysis file generation removed)
     result = {
         'optimized_file': optimized_filename,
         'report_file': report_filename
     }
-    
-    if analysis_filename:
-        result['analysis_file'] = analysis_filename
     
     return result
 
