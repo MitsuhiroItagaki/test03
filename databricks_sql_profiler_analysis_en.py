@@ -18,7 +18,7 @@
 # MAGIC 4. Performance degradation analysis no longer triggers duplicate EXPLAIN calls
 # MAGIC
 # MAGIC ### Expected Benefits:
-# MAGIC - **3x faster execution** for iterative optimization (max 3 attempts)
+# MAGIC - **Faster execution** for iterative optimization (max attempts configurable)
 # MAGIC - **Reduced database load** and network traffic
 # MAGIC - **Elimination of duplicate output files**
 # MAGIC - **More efficient resource utilization**
@@ -13823,7 +13823,7 @@ def analyze_explain_cost_differences(original_cost: str, optimized_cost: str) ->
 def execute_iterative_optimization_with_degradation_analysis(original_query: str, analysis_result: str, metrics: Dict[str, Any], max_optimization_attempts: int = 3) -> Dict[str, Any]:
     """
     Iterative optimization and performance degradation analysis
-    Attempt re-optimization up to 3 times by analyzing degradation causes, use original query if no improvement
+    Attempt re-optimization up to configurable times (max_optimization_attempts); use original query if no improvement
     """
     from datetime import datetime
     
