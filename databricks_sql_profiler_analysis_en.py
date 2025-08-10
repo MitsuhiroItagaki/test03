@@ -12726,6 +12726,14 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             import glob
             # 優先: グローバルに保持された元クエリ
             original_query_text = globals().get('original_query_corrected', '') or globals().get('original_query', '') or ""
+            # 優先: グローバルに保持された最適化クエリ（ファイル未保存時の対策）
+            optimized_query_text = (
+                globals().get('last_optimized_query', '')
+                or globals().get('final_query', '')
+                or globals().get('current_query', '')
+                or globals().get('cached_optimized_query_text', '')
+                or ""
+            )
             # 直近の保存ファイルを参照
             original_files = glob.glob("output_original_query_*.sql")
             optimized_files = glob.glob("output_optimized_query_*.sql")
@@ -12738,7 +12746,8 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             if not original_query_text and latest_original_file:
                 with open(latest_original_file, 'r', encoding='utf-8') as qf:
                     original_query_text = qf.read()
-            if latest_optimized_file:
+            # ファイルはグローバルが空の場合のみ参照
+            if not optimized_query_text and latest_optimized_file:
                 with open(latest_optimized_file, 'r', encoding='utf-8') as qf:
                     optimized_query_text = qf.read()
         except Exception:
@@ -13815,6 +13824,11 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         
         extracted_sql = extract_sql_from_llm_response(optimized_query_str)
         current_query = extracted_sql if extracted_sql else original_query
+        # グローバルに保持（ログ生成時の参照用）
+        try:
+            globals()['last_optimized_query'] = current_query
+        except Exception:
+            pass
         
         # EXPLAIN実行と構文チェック
         explain_result = execute_explain_with_retry_logic(current_query, analysis_result, metrics, max_retries=MAX_RETRIES)
@@ -13917,6 +13931,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                     extracted_sql = extract_sql_from_llm_response(corrected_query_str)
                     if extracted_sql:
                         current_query = extracted_sql
+                        try:
+                            globals()['last_optimized_query'] = current_query
+                        except Exception:
+                            pass
                         print("✅ LLM-based error correction completed, re-evaluating with corrected query")
                         
                         # 修正クエリで再度EXPLAIN実行
@@ -15501,6 +15519,10 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 # 最適化されたクエリの保存
                 optimized_result = retry_result.get('optimized_result', '')
                 final_query = retry_result.get('final_query', original_query_for_explain)
+                try:
+                    globals()['last_optimized_query'] = final_query
+                except Exception:
+                    pass
                 
                 # File saving: final_query (successful query) to SQL file, optimized_result (original LLM response) to report
                 performance_comparison = retry_result.get('performance_comparison')
@@ -15549,6 +15571,10 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 fallback_result = retry_result.get('optimized_result', 'Optimization failed')
                 optimization_attempts = retry_result.get('optimization_attempts', [])
                 best_attempt_number = retry_result.get('best_result', {}).get('attempt_num', 1)
+                try:
+                    globals()['last_optimized_query'] = fallback_query
+                except Exception:
+                    pass
                 
                 saved_files = save_optimized_sql_files(
                     original_query_for_explain,
@@ -15631,6 +15657,10 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 
                 # 🚨 緊急修正: エラー時でもレポートファイルを強制生成
                 print("🚨 Executing emergency report generation...")
+                try:
+                    globals()['last_optimized_query'] = original_query_for_explain
+                except Exception:
+                    pass
                 emergency_saved_files = save_optimized_sql_files(
                     original_query_for_explain,
                     original_query_for_explain,  # 最適化失敗時は元クエリを使用
