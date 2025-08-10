@@ -136,6 +136,8 @@ STRICT_VALIDATION_MODE = 'N'
 CATALOG = 'tpcds'
 DATABASE = 'tpcds_sf1000_delta_lc'
 
+# COMMAND ----------
+
 # === 🎯 Query Optimization Points Extraction Functions ===
 
 def extract_optimization_points_from_query(query: str, trial_type: str, attempt_num: int) -> str:
