@@ -12790,6 +12790,15 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 f.write(f"   Original EXPLAIN COST file  : {globals().get('cached_original_explain_cost_file')}\n")
             if globals().get('cached_optimized_explain_cost_file'):
                 f.write(f"   Optimized EXPLAIN COST file : {globals().get('cached_optimized_explain_cost_file')}\n")
+            # 追加: 判定時に実際に使用したファイル情報
+            if globals().get('judged_context'):
+                jc = globals().get('judged_context') or {}
+                if jc.get('attempt_num') is not None:
+                    f.write(f"   Judgment Attempt            : {jc.get('attempt_num')}\n")
+                if jc.get('original_explain_cost_file'):
+                    f.write(f"   Judgment Original COST file : {jc.get('original_explain_cost_file')}\n")
+                if jc.get('optimized_explain_cost_file'):
+                    f.write(f"   Judgment Optimized COST file: {jc.get('optimized_explain_cost_file')}\n")
             
             f.write(t("\n🎯 メトリクス重み設定:\n",
                       "\n🎯 Metric Weight Settings:\n"))
@@ -12828,16 +12837,15 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 metric_name = key.replace('_', ' ').title()
                 f.write(f"   {metric_name:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
             
-            # 判定対象クエリをログ末尾に追記（保存ファイルからの内容も優先反映）
-            f.write(t(f"\n🧾 判定対象クエリ:\n",
-                      f"\n🧾 Queries Used In Judgment:\n"))
-            if original_query_text:
-                f.write(t(f"\n【元クエリ】\n", f"\n[Original Query]\n"))
-                f.write(original_query_text + "\n")
-            else:
-                f.write(t(f"\n【元クエリ】取得できませんでした\n", f"\n[Original Query] Not Available\n"))
-            if optimized_query_text:
-                f.write(t(f"\n【最適化クエリ】\n", f"\n[Optimized Query]\n"))
+            # 判定に使用した最適化クエリのみをログに出力（オリジナルは不要）
+            f.write(t(f"\n🧾 判定に使用した最適化クエリ:\n",
+                      f"\n🧾 Optimized Query Used For Judgment:\n"))
+            # 最優先: 判定時にキャッシュしたクエリ
+            judged_opt_query = globals().get('judged_optimized_query', '')
+            if isinstance(judged_opt_query, str) and judged_opt_query.strip():
+                f.write(_truncate_for_log(judged_opt_query) + "\n")
+            # 次点: 現在のクエリ/最後の最適化クエリ
+            elif optimized_query_text:
                 f.write(optimized_query_text + "\n")
             else:
                 f.write(t(f"\n【最適化クエリ】取得できませんでした\n", f"\n[Optimized Query] Not Available\n"))
@@ -14130,6 +14138,18 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 
                 print(f"   📊 Original query COST content length: {len(original_cost_content)} characters")
                 print(f"   🔧 Optimized query COST content length: {len(optimized_cost_content)} characters")
+                
+                # 🧾 Cache the exact queries used for this judgment so the logger can include them reliably
+                try:
+                    globals()['judged_original_query'] = original_query_for_explain
+                    globals()['judged_optimized_query'] = current_query
+                    globals()['judged_context'] = {
+                        'attempt_num': attempt_num,
+                        'original_explain_cost_file': original_explain_cost_result.get('explain_cost_file'),
+                        'optimized_explain_cost_file': optimized_explain_cost_result.get('explain_cost_file')
+                    }
+                except Exception:
+                    pass
                 
                 # パフォーマンス比較実行
                 print(f"🔍 Executing compare_query_performance...")
