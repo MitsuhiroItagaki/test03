@@ -7158,6 +7158,79 @@ def extract_cost_statistics_from_explain_cost(explain_cost_content: str) -> str:
     return '\n'.join(summary_lines)
 
 
+def parse_photon_explanation(photon_text: str) -> Dict[str, Any]:
+    """
+    Parse the Photon support section from EXPLAIN output and extract structured signals.
+
+    Expected formats:
+      (1) Unsupported
+          == Photon Explanation ==
+          Photon does not fully support the query because:
+          - reason A
+          - reason B
+
+      (2) Fully supported
+          == Photon Explanation ==
+          The query is fully supported by Photon.
+
+    Returns:
+      Dict with keys:
+        - supported (bool)
+        - reasons (List[str])
+        - raw (str)
+        - detected_elements (List[str])  # heuristically extracted function/feature names
+    """
+    result: Dict[str, Any] = {
+        "supported": False,
+        "reasons": [],
+        "raw": photon_text or "",
+        "detected_elements": []
+    }
+    if not photon_text:
+        return result
+
+    text_lower = photon_text.lower()
+    # Determine support status
+    if "the query is fully supported by photon" in text_lower:
+        result["supported"] = True
+        return result
+    # Extract reasons after the marker line if present
+    lines = [ln.strip() for ln in photon_text.splitlines()]
+    collecting = False
+    for ln in lines:
+        if not ln:
+            continue
+        if "photon does not fully support the query" in ln.lower():
+            collecting = True
+            continue
+        if collecting:
+            # Stop if we hit a new section marker
+            if ln.startswith("== ") and ln.endswith(" =="):
+                break
+            # Capture bullet-like or explanatory lines
+            if ln.startswith(("- ", "* ", "• ")):
+                reason = ln[2:].strip()
+                if reason:
+                    result["reasons"].append(reason)
+            else:
+                # Non-bullet explanatory line
+                result["reasons"].append(ln)
+    # Heuristic extraction of function/feature names from reasons
+    import re
+    elements: List[str] = []
+    for reason in result["reasons"]:
+        # Capture function-like tokens abc(...)
+        elements += re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(", reason)
+        # Capture common keywords that indicate unsupported features
+        for kw in ["UDF", "Python UDF", "Scala UDF", "regex", "rlike", "regexp", "window", "offset", "map", "explode",
+                   "csv", "json", "xml", "decimal", "non-deterministic", "java", "scala"]:
+            if kw.lower() in reason.lower():
+                elements.append(kw)
+    # Normalize unique
+    result["detected_elements"] = sorted({e for e in elements})
+    return result
+
+
 def generate_optimized_query_with_llm(original_query: str, analysis_result: str, metrics: Dict[str, Any]) -> str:
     """
     Optimize SQL query based on detailed bottleneck analysis results from Cell 33 (processing speed priority)
@@ -7519,6 +7592,26 @@ def generate_optimized_query_with_llm(original_query: str, analysis_result: str,
     # 🚨 JOIN戦略分析の簡略化（BROADCASTヒント無効化）
     broadcast_summary = ["🎯 最適化方針: JOIN順序最適化（Sparkの自動戦略を活用、ヒント不使用）"]
     
+    # === Photon structured summary for prompt ===
+    photon_support = parse_photon_explanation(photon_explanation) if photon_explanation else {"supported": False, "reasons": [], "raw": "", "detected_elements": []}
+    if photon_support.get("supported"):
+        photon_support_summary = "Photon support: FULL (no blocking items detected)"
+        photon_refactor_requirements = (
+            "Photon-compatible structure should be preserved. Avoid introducing Python/Scala UDFs, non-deterministic UDFs, or regex features that break vectorization."
+        )
+    else:
+        reasons = photon_support.get("reasons", [])
+        elements = photon_support.get("detected_elements", [])
+        reason_lines = "\n".join([f"- {r}" for r in reasons]) if reasons else "- Reasons not explicitly provided by EXPLAIN"
+        detected = ", ".join(elements) if elements else "(no specific elements detected)"
+        photon_support_summary = (
+            "Photon support: PARTIAL/UNSUPPORTED. The EXPLAIN indicates unsupported features.\n" + reason_lines + f"\nDetected elements: {detected}"
+        )
+        photon_refactor_requirements = (
+            "You MUST refactor the query to achieve FULL Photon support by removing or replacing all unsupported constructs listed above. "
+            "Replace UDFs with built-in SQL functions, avoid non-vectorized regex features, prefer deterministic built-ins, and use Photon-friendly expressions."
+        )
+    
     optimization_prompt = f"""
 あなたはDatabricksのSQLパフォーマンス最適化の専門家です。以下の**詳細なボトルネック分析結果**を基に、**処理速度重視**でSQLクエリを最適化してください。
 
@@ -7562,10 +7655,13 @@ Sparkの自動JOIN戦略を使用（エラー回避のためヒントは使用�
 {physical_plan}
 ```
 
-**Photon Explanation分析:**
+**Photon Explanation（原文）:**
 ```
 {photon_explanation}
 ```
+
+**Photonサポート診断（構造化）:**
+{photon_support_summary}
 
 **Physical Plan最適化の重要ポイント:**
 - ファイルスキャンの効率性
@@ -7579,6 +7675,9 @@ Sparkの自動JOIN戦略を使用（エラー回避のためヒントは使用�
 - ベクトル化処理に適した関数の選択
 - Photon利用率向上のための書式変更
 - コンパイル時最適化の活用
+
+**Photon適合のための修正義務:**
+{photon_refactor_requirements}
 ''' if explain_enabled.upper() == 'Y' and (physical_plan or photon_explanation) else '(EXPLAIN実行が無効、またはEXPLAIN結果が利用できません)'}
 
 【💰 EXPLAIN COST統計情報分析（統計ベース最適化）】
