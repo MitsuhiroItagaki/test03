@@ -12717,6 +12717,42 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         log_filename = f"output_performance_judgment_log_{timestamp}.txt"
         
+        # 判定対象クエリを取得（グローバル変数 or 直近の保存ファイルから）
+        original_query_text = ""
+        optimized_query_text = ""
+        latest_original_file = ""
+        latest_optimized_file = ""
+        try:
+            import glob
+            # 優先: グローバルに保持された元クエリ
+            original_query_text = globals().get('original_query_corrected', '') or globals().get('original_query', '') or ""
+            # 直近の保存ファイルを参照
+            original_files = glob.glob("output_original_query_*.sql")
+            optimized_files = glob.glob("output_optimized_query_*.sql")
+            if original_files:
+                original_files.sort(reverse=True)
+                latest_original_file = original_files[0]
+            if optimized_files:
+                optimized_files.sort(reverse=True)
+                latest_optimized_file = optimized_files[0]
+            if not original_query_text and latest_original_file:
+                with open(latest_original_file, 'r', encoding='utf-8') as qf:
+                    original_query_text = qf.read()
+            if latest_optimized_file:
+                with open(latest_optimized_file, 'r', encoding='utf-8') as qf:
+                    optimized_query_text = qf.read()
+        except Exception:
+            pass
+        
+        def _truncate_for_log(text: str, max_chars: int = 4000) -> str:
+            text = text.strip() if isinstance(text, str) else ""
+            if len(text) > max_chars:
+                return text[:max_chars] + f"\n... (truncated; total {len(text)} chars)"
+            return text
+        
+        original_query_text = _truncate_for_log(original_query_text)
+        optimized_query_text = _truncate_for_log(optimized_query_text)
+        
         with open(log_filename, 'w', encoding='utf-8') as f:
             f.write("=" * 80 + "\n")
             f.write(t("📊 重み付けシステム詳細分析ログ\n",
@@ -12759,6 +12795,20 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             for key, ratio in detailed_ratios.items():
                 metric_name = key.replace('_', ' ').title()
                 f.write(f"   {metric_name:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
+            
+            # 判定対象クエリをログ末尾に追記
+            f.write(t(f"\n🧾 判定対象クエリ:\n",
+                      f"\n🧾 Queries Used In Judgment:\n"))
+            if original_query_text:
+                f.write(t(f"\n【元クエリ】\n", f"\n[Original Query]\n"))
+                f.write(original_query_text + "\n")
+            else:
+                f.write(t(f"\n【元クエリ】取得できませんでした\n", f"\n[Original Query] Not Available\n"))
+            if optimized_query_text:
+                f.write(t(f"\n【最適化クエリ】\n", f"\n[Optimized Query]\n"))
+                f.write(optimized_query_text + "\n")
+            else:
+                f.write(t(f"\n【最適化クエリ】取得できませんでした\n", f"\n[Optimized Query] Not Available\n"))
         
         print(t(f"\n💾 詳細ログファイル保存: {log_filename}",
                  f"\n💾 Detailed log file saved: {log_filename}"))
