@@ -11198,9 +11198,8 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     if re.search(r',\s*,', sql_query):
         return False
     
-    # 不正な空白パターン
-    if re.search(r'\s{5,}', sql_query):  # 5個以上の連続する空白
-        return False
+    # 不正な空白パターン（過度に厳しかったため不合格条件から除外）
+    # インデントや整形により5つ以上の空白が現れるのは一般的なため、ここでは判定に使用しない
     
     return True
 
@@ -11274,10 +11273,9 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
                 if validate_final_sql_syntax(optimized_sql_clean):
                     f.write(optimized_sql_clean)
                 else:
-                    f.write("-- ⚠️ 構文エラーが検出されました。手動で確認してください。\n")
-                    f.write(f"-- 元のSQL:\n{optimized_sql_clean}\n")
-                    f.write("-- 以下は最適化分析の全結果です:\n\n")
-                    f.write(f"/*\n{optimized_result_main_content}\n*/")
+                    # 警告のみ付与しつつ、SQL自体は出力（ユーザーが修正可能な形で保存）
+                    f.write("-- ⚠️ 自動検証で警告が検出されました。実行前にSQLを確認してください。\n")
+                    f.write(optimized_sql_clean)
             else:
                 f.write("-- ⚠️ SQLコードの自動抽出に失敗しました\n")
                 f.write("-- 以下は最適化分析の全結果です:\n\n")
