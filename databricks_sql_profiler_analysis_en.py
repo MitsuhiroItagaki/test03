@@ -12180,6 +12180,10 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     """
     すべてのメトリクスを考慮した総合コスト比率を計算
     """
+    # Suppress verbose detailed analysis console logs when PRINT_ONLY_FINAL_JUDGMENT == 'Y'
+    if globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
+        def print(*args, **kwargs):
+            return
     # メトリクス重み設定（重要度に基づく）
     weights = {
         'data_processing_weight': 0.25,    # データサイズ + 行数
@@ -12564,23 +12568,24 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     SUBSTANTIAL_IMPROVEMENT_THRESHOLD = 0.80      # 20%以上の大幅改善
     MINOR_IMPROVEMENT_THRESHOLD = 0.95            # 5%以上の軽微改善
     
-    print("\n" + "="*80)
-    print(t("🎯 パフォーマンス改善レベル判定", "🎯 Performance Improvement Level Judgment"))
-    print("="*80)
-    
-    print(t(f"\n📏 判定閾値 (保守的アプローチ):",
-             f"\n📏 Judgment Thresholds (Conservative Approach):"))
-    print(t(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)",
-             f"   Substantial Improvement Threshold : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%+ improvement)"))
-    print(t(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)",
-             f"   Significant Improvement Threshold : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%+ improvement)"))
-    print(t(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)",  
-             f"   Minor Improvement Threshold       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%+ improvement)"))
-    print(t(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)",
-             f"   Equivalent Performance Range     : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (within ±5%)"))
-    print(t(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)",
-             f"   Degradation Detection Threshold  : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%+ degradation)"))
-    
+    if not globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
+        print("\n" + "="*80)
+        print(t("🎯 パフォーマンス改善レベル判定", "🎯 Performance Improvement Level Judgment"))
+        print("="*80)
+
+        print(t(f"\n📏 判定閾値 (保守的アプローチ):",
+                     f"\n📏 Judgment Thresholds (Conservative Approach):"))
+        print(t(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)",
+                     f"   Substantial Improvement Threshold : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%+ improvement)"))
+        print(t(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)",
+                     f"   Significant Improvement Threshold : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%+ improvement)"))
+        print(t(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)",  
+                     f"   Minor Improvement Threshold       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%+ improvement)"))
+        print(t(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)",
+                     f"   Equivalent Performance Range     : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (within ±5%)"))
+        print(t(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)",
+                     f"   Degradation Detection Threshold  : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%+ degradation)"))
+
     # スピルリスク特別判定（スピルリスクが大幅減少した場合は高評価）
     spill_improvement_factor = 1.0
     spill_bonus_text = ""
@@ -12602,20 +12607,21 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     # スピル補正を適用した最終比率
     final_comprehensive_ratio = comprehensive_ratio * spill_improvement_factor
     
-    print(t(f"\n🧮 最終判定計算:", f"\n🧮 Final Judgment Calculation:"))
-    print(t(f"   基本総合比率       : {comprehensive_ratio:.4f}",
-             f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}"))
-    print(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}",
-             f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}"))
-    print(t(f"   スピル調整詳細     : {spill_bonus_text}",
-             f"   Spill Adjustment Details : {spill_bonus_text}"))
-    print(t(f"   最終総合比率       : {final_comprehensive_ratio:.4f}",
-             f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}"))
-    
-    improvement_pct = (1 - final_comprehensive_ratio) * 100
-    print(t(f"   最終改善率         : {improvement_pct:+.2f}%",
-             f"   Final Improvement Rate  : {improvement_pct:+.2f}%"))
-    
+    if not globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
+        print(t(f"\n🧮 最終判定計算:", f"\n🧮 Final Judgment Calculation:"))
+        print(t(f"   基本総合比率       : {comprehensive_ratio:.4f}",
+                     f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}"))
+        print(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}",
+                     f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}"))
+        print(t(f"   スピル調整詳細     : {spill_bonus_text}",
+                     f"   Spill Adjustment Details : {spill_bonus_text}"))
+        print(t(f"   最終総合比率       : {final_comprehensive_ratio:.4f}",
+                     f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}"))
+
+        improvement_pct = (1 - final_comprehensive_ratio) * 100
+        print(t(f"   最終改善率         : {improvement_pct:+.2f}%",
+                     f"   Final Improvement Rate  : {improvement_pct:+.2f}%"))
+
     # 判定結果
     judgment = {
         'comprehensive_cost_ratio': final_comprehensive_ratio,
@@ -15082,7 +15088,8 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         
     except Exception as e:
         error_message = str(e)
-        print(f"❌ Failed to execute EXPLAIN or EXPLAIN COST statement: {error_message}")
+        first_line = error_message.splitlines()[0] if error_message else ""
+        print(f"❌ Failed to execute EXPLAIN or EXPLAIN COST statement: {first_line}")
         
         # 真の致命的エラー（リトライ不可能なエラー）のチェック
         truly_fatal_errors = [
