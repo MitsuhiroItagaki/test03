@@ -90,10 +90,6 @@ JSON_FILE_PATH = 'query-profile_01f0703c-c975-1f48-ad71-ba572cc57272.json'
 CATALOG = 'tpcds'
 DATABASE = 'tpcds_sf1000_delta_lc'
 
-# Option 2: To use other JSON files, uncomment and edit the following
-# JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/nophoton.json'
-# JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/POC1.json'
-# JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/your_file.json'
 
 # 🌐 Output language setting (OUTPUT_LANGUAGE: 'ja' = Japanese, 'en' = English)
 OUTPUT_LANGUAGE = 'en'
