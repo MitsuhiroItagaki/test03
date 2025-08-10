@@ -86,16 +86,14 @@
 # Option 1: Pre-tuning plan file (recommended)
 JSON_FILE_PATH = 'query-profile_01f0703c-c975-1f48-ad71-ba572cc57272.json'
 
+# 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
+CATALOG = 'tpcds'
+DATABASE = 'tpcds_sf1000_delta_lc'
+
 # Option 2: To use other JSON files, uncomment and edit the following
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/nophoton.json'
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/POC1.json'
 # JSON_FILE_PATH = '/Volumes/main/base/mitsuhiro_vol/your_file.json'
-
-# Command line environment (optional)
-import sys
-if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
-    # Use only when command line argument is not a flag (doesn't start with -)
-    JSON_FILE_PATH = sys.argv[1]
 
 # 🌐 Output language setting (OUTPUT_LANGUAGE: 'ja' = Japanese, 'en' = English)
 OUTPUT_LANGUAGE = 'en'
@@ -148,10 +146,6 @@ STAGED_JUDGMENT_MODE = 'Y'
 # - 'Y': Perform strict validation of all input metrics with detailed error messages
 # - 'N': Use basic validation (faster but less detailed error reporting)
 STRICT_VALIDATION_MODE = 'N'
-
-# 🗂️ Catalog and database configuration (used when executing EXPLAIN statements)
-CATALOG = 'tpcds'
-DATABASE = 'tpcds_sf1000_delta_lc'
 
 # COMMAND ----------
 
