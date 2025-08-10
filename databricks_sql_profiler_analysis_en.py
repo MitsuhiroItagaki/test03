@@ -12441,7 +12441,7 @@ def detect_join_strategy_improvement(optimized_metrics, original_metrics):
     return join_improved
 
 
-def comprehensive_performance_judgment(original_metrics, optimized_metrics):
+def comprehensive_performance_judgment(original_metrics, optimized_metrics, forced_original_query_text: str = None, forced_optimized_query_text: str = None, forced_original_file: str = None, forced_optimized_file: str = None):
     """
     すべてのメトリクスを考慮した総合パフォーマンス判定
     """
@@ -12762,6 +12762,15 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 original_query_text = original_query_from_file
             if len(optimized_query_from_file) > len(optimized_query_text):
                 optimized_query_text = optimized_query_from_file
+            # 🔒 明示引き渡しがある場合はそれを最優先で使用
+            if 'forced_original_file' in locals() and locals().get('forced_original_file'):
+                latest_original_file = locals().get('forced_original_file')
+            if 'forced_optimized_file' in locals() and locals().get('forced_optimized_file'):
+                latest_optimized_file = locals().get('forced_optimized_file')
+            if 'forced_original_query_text' in locals() and locals().get('forced_original_query_text') is not None:
+                original_query_text = locals().get('forced_original_query_text')
+            if 'forced_optimized_query_text' in locals() and locals().get('forced_optimized_query_text') is not None:
+                optimized_query_text = locals().get('forced_optimized_query_text')
         except Exception:
             pass
         
@@ -12770,6 +12779,16 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             if len(text) > max_chars:
                 return text[:max_chars] + f"\n... (truncated; total {len(text)} chars)"
             return text
+        
+        # 🔒 明示引き渡しがグローバルで提供されていれば最優先で反映
+        forced_ctx = globals().get('FORCED_JUDGMENT_SQL_CONTEXT', {})
+        if isinstance(forced_ctx, dict):
+            latest_original_file = forced_ctx.get('original_file', latest_original_file) or latest_original_file
+            latest_optimized_file = forced_ctx.get('optimized_file', latest_optimized_file) or latest_optimized_file
+            if forced_ctx.get('original_content') is not None:
+                original_query_text = forced_ctx.get('original_content')
+            if forced_ctx.get('optimized_content') is not None:
+                optimized_query_text = forced_ctx.get('optimized_content')
         
         original_query_text = _truncate_for_log(original_query_text)
         optimized_query_text = _truncate_for_log(optimized_query_text)
@@ -12863,7 +12882,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     
     return judgment
 
-def compare_query_performance(original_explain_cost: str, optimized_explain_cost: str) -> Dict[str, Any]:
+def compare_query_performance(original_explain_cost: str, optimized_explain_cost: str, forced_original_sql_file: str = None, forced_optimized_sql_file: str = None, forced_original_sql_content: str = None, forced_optimized_sql_content: str = None) -> Dict[str, Any]:
     """
     Compare EXPLAIN COST results to detect performance degradation
     
@@ -13210,7 +13229,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             # 設定確認：段階的判定が無効の場合は従来の方法を使用
             if globals().get('STAGED_JUDGMENT_MODE', 'N').upper() != 'Y':
                 print("🔄 Using traditional comprehensive judgment (STAGED_JUDGMENT_MODE=N)")
-                return comprehensive_performance_judgment(original_metrics, optimized_metrics)
+                return comprehensive_performance_judgment(original_metrics, optimized_metrics, forced_original_query_text=forced_original_sql_content, forced_optimized_query_text=forced_optimized_sql_content, forced_original_file=forced_original_sql_file, forced_optimized_file=forced_optimized_sql_file)
             
             # ステージ1: 基本メトリクス比較
             stage1_result = None
@@ -13270,7 +13289,7 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
             stage3_result = None
             try:
                 print("🔍 Stage 3: Comprehensive judgment")
-                comprehensive_judgment = comprehensive_performance_judgment(original_metrics, optimized_metrics)
+                comprehensive_judgment = comprehensive_performance_judgment(original_metrics, optimized_metrics, forced_original_query_text=forced_original_sql_content, forced_optimized_query_text=forced_optimized_sql_content, forced_original_file=forced_original_sql_file, forced_optimized_file=forced_optimized_sql_file)
                 stage3_result = {
                     'stage': 'comprehensive_judgment',
                     'success': True,
@@ -14131,9 +14150,46 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                 print(f"   📊 Original query COST content length: {len(original_cost_content)} characters")
                 print(f"   🔧 Optimized query COST content length: {len(optimized_cost_content)} characters")
                 
-                # パフォーマンス比較実行
+                # 💾 判定前に実際に使用する最適化SQLを保存し、その内容/パスを明示的に渡す
+                forced_opt_file = None
+                forced_opt_content = None
+                try:
+                    early_saved = save_optimized_sql_files(
+                        original_query,
+                        current_query,
+                        metrics,
+                        analysis_result,
+                        optimized_query_str,
+                        None,
+                        attempt_num,
+                        optimization_attempts,
+                        True
+                    )
+                    forced_opt_file = early_saved.get('optimized_file')
+                    if forced_opt_file:
+                        with open(forced_opt_file, 'r', encoding='utf-8') as f:
+                            forced_opt_content = f.read()
+                except Exception:
+                    pass
+                
+                # パフォーマンス比較実行（保存済みSQLの情報を明示的に渡す）
                 print(f"🔍 Executing compare_query_performance...")
-                performance_comparison = compare_query_performance(original_cost_content, optimized_cost_content)
+                # 明示引き渡し情報をグローバルにも設定（ロギング側が確実に参照）
+                try:
+                    globals()['FORCED_JUDGMENT_SQL_CONTEXT'] = {
+                        'optimized_file': forced_opt_file,
+                        'optimized_content': forced_opt_content,
+                    }
+                except Exception:
+                    pass
+                performance_comparison = compare_query_performance(
+                    original_cost_content,
+                    optimized_cost_content,
+                    forced_original_sql_file=None,
+                    forced_optimized_sql_file=forced_opt_file,
+                    forced_original_sql_content=None,
+                    forced_optimized_sql_content=forced_opt_content,
+                )
                 print(f"✅ compare_query_performance completed: {performance_comparison is not None}")
                 
                 if performance_comparison:
@@ -14506,7 +14562,14 @@ def execute_explain_with_retry_logic(original_query: str, analysis_result: str, 
                         optimized_cost_content = f.read()
                     
                     # パフォーマンス比較実行
-                    performance_comparison = compare_query_performance(original_cost_content, optimized_cost_content)
+                    performance_comparison = compare_query_performance(
+                        original_cost_content,
+                        optimized_cost_content,
+                        forced_original_sql_file=None,
+                        forced_optimized_sql_file=globals().get('FORCED_JUDGMENT_SQL_CONTEXT', {}).get('optimized_file'),
+                        forced_original_sql_content=None,
+                        forced_optimized_sql_content=globals().get('FORCED_JUDGMENT_SQL_CONTEXT', {}).get('optimized_content'),
+                    )
                     
                     print(f"📊 Performance comparison results:")
                     cost_ratio = performance_comparison.get('total_cost_ratio', 1.0) or 1.0
