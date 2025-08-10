@@ -141,6 +141,11 @@ STAGED_JUDGMENT_MODE = 'Y'
 # ⚠️ STRICT_VALIDATION_MODE: Enable strict input validation for metrics
 # - 'Y': Perform strict validation of all input metrics with detailed error messages
 # - 'N': Use basic validation (faster but less detailed error reporting)
+# - 'Y'（厳格）: 必須項目 total_size_bytes, row_count, scan_operations, join_operations の存在・非 None・数値型チェック、
+#                さらに total_size_bytes と row_count は負値不可。違反時は詳細理由つきで例外を送出。
+# - 'N'（基本）: total_size_bytes と row_count の存在・非 None のみを確認（高速・本番向け）。
+# - 例外発生時の挙動: 総合判定処理は例外を捕捉し、サイズ・行数の平均比率による「基本比較」に自動フォールバック。
+# - 既定値: 'N'。入力不備の洗い出しやデバッグ時のみ 'Y' を推奨。
 STRICT_VALIDATION_MODE = 'N'
 
 # COMMAND ----------
