@@ -12717,7 +12717,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         log_filename = f"output_performance_judgment_log_{timestamp}.txt"
         
-        # 判定対象クエリを取得（グローバル変数 or 直近の保存ファイルから）
+        # 判定対象クエリを取得（グローバル変数 + 直近の保存ファイルから常に両方参照して最新・完全な内容を使用）
         original_query_text = ""
         optimized_query_text = ""
         latest_original_file = ""
@@ -12743,13 +12743,25 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
             if optimized_files:
                 optimized_files.sort(reverse=True)
                 latest_optimized_file = optimized_files[0]
-            if not original_query_text and latest_original_file:
-                with open(latest_original_file, 'r', encoding='utf-8') as qf:
-                    original_query_text = qf.read()
-            # ファイルはグローバルが空の場合のみ参照
-            if not optimized_query_text and latest_optimized_file:
-                with open(latest_optimized_file, 'r', encoding='utf-8') as qf:
-                    optimized_query_text = qf.read()
+            # 常にファイルからも読み込み、より長い（完全な）内容を優先
+            original_query_from_file = ""
+            optimized_query_from_file = ""
+            if latest_original_file:
+                try:
+                    with open(latest_original_file, 'r', encoding='utf-8') as qf:
+                        original_query_from_file = qf.read()
+                except Exception:
+                    original_query_from_file = ""
+            if latest_optimized_file:
+                try:
+                    with open(latest_optimized_file, 'r', encoding='utf-8') as qf:
+                        optimized_query_from_file = qf.read()
+                except Exception:
+                    optimized_query_from_file = ""
+            if len(original_query_from_file) > len(original_query_text):
+                original_query_text = original_query_from_file
+            if len(optimized_query_from_file) > len(optimized_query_text):
+                optimized_query_text = optimized_query_from_file
         except Exception:
             pass
         
@@ -12768,8 +12780,19 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                       "📊 Weighted System Detailed Analysis Log\n"))
             f.write("=" * 80 + "\n\n")
             
-            f.write(t("🎯 メトリクス重み設定:\n",
-                      "🎯 Metric Weight Settings:\n"))
+            # 参照ファイルを明記
+            f.write(t("📂 参照ファイル:\n", "📂 Referenced files:\n"))
+            if latest_original_file:
+                f.write(f"   Original SQL file           : {latest_original_file}\n")
+            if latest_optimized_file:
+                f.write(f"   Optimized SQL file          : {latest_optimized_file}\n")
+            if globals().get('cached_original_explain_cost_file'):
+                f.write(f"   Original EXPLAIN COST file  : {globals().get('cached_original_explain_cost_file')}\n")
+            if globals().get('cached_optimized_explain_cost_file'):
+                f.write(f"   Optimized EXPLAIN COST file : {globals().get('cached_optimized_explain_cost_file')}\n")
+            
+            f.write(t("\n🎯 メトリクス重み設定:\n",
+                      "\n🎯 Metric Weight Settings:\n"))
             for key, weight in cost_analysis['weights_used'].items():
                 category = key.replace('_weight', '').replace('_', ' ').title()
                 f.write(f"   {category:30} : {weight:5.2%} ({weight:.3f})\n")
@@ -12805,7 +12828,7 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 metric_name = key.replace('_', ' ').title()
                 f.write(f"   {metric_name:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
             
-            # 判定対象クエリをログ末尾に追記
+            # 判定対象クエリをログ末尾に追記（保存ファイルからの内容も優先反映）
             f.write(t(f"\n🧾 判定対象クエリ:\n",
                       f"\n🧾 Queries Used In Judgment:\n"))
             if original_query_text:
@@ -13744,6 +13767,14 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
     
     optimization_attempts = []
     original_query_for_explain = original_query  # 元クエリの保持
+
+    # 前回実行のキャッシュをクリア（メトリクス重複防止）
+    try:
+        for key in ['cached_original_explain_cost_result', 'cached_original_explain_cost_content', 'cached_optimized_explain_cost_content', 'cached_original_explain_cost_file', 'cached_optimized_explain_cost_file']:
+            if key in globals():
+                globals().pop(key, None)
+    except Exception:
+        pass
     
     # 🚀 ベスト結果追跡（ユーザー要求：最大試行回数到達時は最も良い結果を選択）
     best_result = {
@@ -13827,6 +13858,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         # グローバルに保持（ログ生成時の参照用）
         try:
             globals()['last_optimized_query'] = current_query
+            globals()['current_query'] = current_query
         except Exception:
             pass
         
@@ -13859,6 +13891,11 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             original_explain_cost_result = execute_explain_and_save_to_file(corrected_original_query, "original_performance_check")
             # グローバルキャッシュに保存
             globals()['cached_original_explain_cost_result'] = original_explain_cost_result
+            # 参照ファイルパスも保存（ログで使用）
+            try:
+                globals()['cached_original_explain_cost_file'] = original_explain_cost_result.get('explain_cost_file')
+            except Exception:
+                pass
         else:
             print(f"💾 Attempt {attempt_num}: Using cached EXPLAIN COST result for original query (avoiding duplicate execution)")
             # キャッシュから復元
@@ -13866,6 +13903,10 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
         
         # 最適化クエリのEXPLAIN COST取得
         optimized_explain_cost_result = execute_explain_and_save_to_file(current_query, f"optimized_attempt_{attempt_num}")
+        try:
+            globals()['cached_optimized_explain_cost_file'] = optimized_explain_cost_result.get('explain_cost_file')
+        except Exception:
+            pass
         
         performance_comparison = None
         degradation_analysis = None
@@ -13933,6 +13974,7 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
                         current_query = extracted_sql
                         try:
                             globals()['last_optimized_query'] = current_query
+                            globals()['current_query'] = current_query
                         except Exception:
                             pass
                         print("✅ LLM-based error correction completed, re-evaluating with corrected query")
@@ -15389,6 +15431,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
             
             # 🎯 元クエリをグローバル変数として保存（重複処理防止）
             globals()['original_query_corrected'] = original_query_validated
+            globals()['current_query'] = original_query_validated
             print("💾 Caching original query: Preventing duplicate processing")
             
             original_explain_result = execute_explain_and_save_to_file(original_query_for_explain, "original")
@@ -15521,6 +15564,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 final_query = retry_result.get('final_query', original_query_for_explain)
                 try:
                     globals()['last_optimized_query'] = final_query
+                    globals()['current_query'] = final_query
                 except Exception:
                     pass
                 
@@ -15573,6 +15617,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 best_attempt_number = retry_result.get('best_result', {}).get('attempt_num', 1)
                 try:
                     globals()['last_optimized_query'] = fallback_query
+                    globals()['current_query'] = fallback_query
                 except Exception:
                     pass
                 
@@ -15659,6 +15704,7 @@ elif original_query_for_explain and original_query_for_explain.strip():
                 print("🚨 Executing emergency report generation...")
                 try:
                     globals()['last_optimized_query'] = original_query_for_explain
+                    globals()['current_query'] = original_query_for_explain
                 except Exception:
                     pass
                 emergency_saved_files = save_optimized_sql_files(
