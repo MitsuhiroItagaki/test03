@@ -460,7 +460,11 @@ def load_applied_optimizations_from_debug_logs(max_files: int = 10, max_items: i
             seen.add(normalized)
             applied_items.append(normalized)
 
-        header_prefix = "**🎯 実際に適用した最適化手法**"
+        import re
+        header_patterns = [
+            re.compile(r'^\s*(\*{0,2})?\s*(🎯\s*)?実際に適用した最適化手法\s*(\*{0,2})?\s*[:：]?\s*$', re.UNICODE),
+            re.compile(r'^\s*(\*{0,2})?\s*(🎯\s*)?Applied Optimization Techniques\s*(\*{0,2})?\s*[:：]?\s*$', re.IGNORECASE),
+        ]
 
         for file_path in target_files:
             try:
@@ -470,7 +474,7 @@ def load_applied_optimizations_from_debug_logs(max_files: int = 10, max_items: i
                 i = 0
                 while i < len(lines):
                     line = lines[i]
-                    if line.strip().startswith(header_prefix):
+                    if any(pat.match(line.strip()) for pat in header_patterns):
                         # 次行から箇条書きを収集
                         j = i + 1
                         while j < len(lines):
