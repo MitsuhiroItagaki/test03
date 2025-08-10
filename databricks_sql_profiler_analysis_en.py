@@ -150,6 +150,118 @@ STRICT_VALIDATION_MODE = 'N'
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## 🤖 LLM Endpoint Configuration
+# MAGIC
+# MAGIC This cell performs the following configurations:
+# MAGIC - LLM provider selection (Databricks/OpenAI/Azure/Anthropic)
+# MAGIC - Connection settings for each provider
+# MAGIC - Required library imports
+
+# COMMAND ----------
+
+# 🤖 LLM Endpoint Configuration
+LLM_CONFIG = {
+    # Endpoint type: 'databricks', 'openai', 'azure_openai', 'anthropic'
+    "provider": "databricks",
+    
+    # Databricks Model Serving configuration (high-speed execution priority)
+    "databricks": {
+        "endpoint_name": "databricks-claude-3-7-sonnet",  # Model Serving endpoint name
+        "max_tokens": 131072,  # 128K tokens (Claude 3.7 Sonnet maximum limit)
+        "temperature": 0.0,    # For deterministic output (0.1→0.0)
+        # "thinking_enabled": False,  # Extended thinking mode (default: disabled - high-speed execution priority) - Claude 3 Sonnet only
+        # "thinking_budget_tokens": 65536  # Thinking token budget 64K tokens (used only when enabled) - Claude 3 Sonnet only
+    },
+    
+    # OpenAI configuration (optimized for complete SQL generation)
+    "openai": {
+        "api_key": "",  # OpenAI API key (can also use environment variable OPENAI_API_KEY)
+        "model": "gpt-4o",  # gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+        "max_tokens": 16000,  # Maximum within OpenAI limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    },
+    
+    # Azure OpenAI configuration (optimized for complete SQL generation)
+    "azure_openai": {
+        "api_key": "",  # Azure OpenAI API key (can also use environment variable AZURE_OPENAI_API_KEY)
+        "endpoint": "",  # https://your-resource.openai.azure.com/
+        "deployment_name": "",  # Deployment name
+        "api_version": "2024-02-01",
+        "max_tokens": 16000,  # Maximum within Azure OpenAI limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    },
+    
+    # Anthropic configuration (optimized for complete SQL generation)
+    "anthropic": {
+        "api_key": "",  # Anthropic API key (can also use environment variable ANTHROPIC_API_KEY)
+        "model": "claude-3-5-sonnet-20241022",  # claude-3-5-sonnet-20241022, claude-3-opus-20240229
+        "max_tokens": 16000,  # Maximum within Anthropic limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    }
+}
+
+print("🤖 LLM endpoint configuration completed")
+print(f"🤖 LLM Provider: {LLM_CONFIG['provider']}")
+
+if LLM_CONFIG['provider'] == 'databricks':
+    print(f"🔗 Databricks endpoint: {LLM_CONFIG['databricks']['endpoint_name']}")
+    thinking_status = "Enabled" if LLM_CONFIG['databricks'].get('thinking_enabled', False) else "Disabled"
+    thinking_budget = LLM_CONFIG['databricks'].get('thinking_budget_tokens', 65536)
+    max_tokens = LLM_CONFIG['databricks'].get('max_tokens', 131072)
+    print(f"🧠 Extended thinking mode: {thinking_status} (budget: {thinking_budget:,} tokens)")
+    print(f"📊 Maximum tokens: {max_tokens:,} tokens ({max_tokens//1024}K)")
+    if not LLM_CONFIG['databricks'].get('thinking_enabled', False):
+        print("⚡ Fast execution mode: Skip thinking process for rapid result generation")
+elif LLM_CONFIG['provider'] == 'openai':
+    print(f"🔗 OpenAI model: {LLM_CONFIG['openai']['model']}")
+elif LLM_CONFIG['provider'] == 'azure_openai':
+    print(f"🔗 Azure OpenAI deployment: {LLM_CONFIG['azure_openai']['deployment_name']}")
+elif LLM_CONFIG['provider'] == 'anthropic':
+    print(f"🔗 Anthropic model: {LLM_CONFIG['anthropic']['model']}")
+
+print()
+print("💡 LLM provider switching examples:")
+print('   LLM_CONFIG["provider"] = "openai"      # Switch to OpenAI GPT-4')
+print('   LLM_CONFIG["provider"] = "anthropic"   # Switch to Anthropic Claude')
+print('   LLM_CONFIG["provider"] = "azure_openai" # Switch to Azure OpenAI')
+print()
+print("🧠 Databricks extended thinking mode configuration examples:")
+print('   LLM_CONFIG["databricks"]["thinking_enabled"] = False  # Disable extended thinking mode (default, fast execution)')
+print('   LLM_CONFIG["databricks"]["thinking_enabled"] = True   # Enable extended thinking mode (detailed analysis only)')
+print('   LLM_CONFIG["databricks"]["thinking_budget_tokens"] = 65536  # Thinking token budget (64K)')
+print('   LLM_CONFIG["databricks"]["max_tokens"] = 131072  # Maximum tokens (128K)')
+print()
+
+# Import necessary libraries
+try:
+    import requests
+except ImportError:
+    print("Warning: requests is not installed, some features may not work")
+    requests = None
+import os
+try:
+    from pyspark.sql import SparkSession
+except ImportError:
+    print("Warning: pyspark is not installed")
+    SparkSession = None
+    print("✅ Spark Version: Not available")
+
+# Safely retrieve Databricks Runtime information
+try:
+    if spark is not None:
+        runtime_version = spark.conf.get('spark.databricks.clusterUsageTags.sparkVersion')
+    print(f"✅ Databricks Runtime: {runtime_version}")
+except Exception:
+    try:
+        # Retrieve DBR information using alternative method
+        dbr_version = spark.conf.get('spark.databricks.clusterUsageTags.clusterName', 'Unknown')
+        print(f"✅ Databricks Cluster: {dbr_version}")
+    except Exception:
+        print("✅ Databricks Environment: Skipped configuration information retrieval")
+
+# COMMAND ----------
+
 # === 🎯 Query Optimization Points Extraction Functions ===
 
 def extract_optimization_points_from_query(query: str, trial_type: str, attempt_num: int) -> str:
@@ -466,118 +578,6 @@ from datetime import datetime
 
 print("✅ Basic library import completed")
 print("🚀 Please proceed to the next cell")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 🤖 LLM Endpoint Configuration
-# MAGIC
-# MAGIC This cell performs the following configurations:
-# MAGIC - LLM provider selection (Databricks/OpenAI/Azure/Anthropic)
-# MAGIC - Connection settings for each provider
-# MAGIC - Required library imports
-
-# COMMAND ----------
-
-# 🤖 LLM Endpoint Configuration
-LLM_CONFIG = {
-    # Endpoint type: 'databricks', 'openai', 'azure_openai', 'anthropic'
-    "provider": "databricks",
-    
-    # Databricks Model Serving configuration (high-speed execution priority)
-    "databricks": {
-        "endpoint_name": "databricks-claude-3-7-sonnet",  # Model Serving endpoint name
-        "max_tokens": 131072,  # 128K tokens (Claude 3.7 Sonnet maximum limit)
-        "temperature": 0.0,    # For deterministic output (0.1→0.0)
-        # "thinking_enabled": False,  # Extended thinking mode (default: disabled - high-speed execution priority) - Claude 3 Sonnet only
-        # "thinking_budget_tokens": 65536  # Thinking token budget 64K tokens (used only when enabled) - Claude 3 Sonnet only
-    },
-    
-    # OpenAI configuration (optimized for complete SQL generation)
-    "openai": {
-        "api_key": "",  # OpenAI API key (can also use environment variable OPENAI_API_KEY)
-        "model": "gpt-4o",  # gpt-4o, gpt-4-turbo, gpt-3.5-turbo
-        "max_tokens": 16000,  # Maximum within OpenAI limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    },
-    
-    # Azure OpenAI configuration (optimized for complete SQL generation)
-    "azure_openai": {
-        "api_key": "",  # Azure OpenAI API key (can also use environment variable AZURE_OPENAI_API_KEY)
-        "endpoint": "",  # https://your-resource.openai.azure.com/
-        "deployment_name": "",  # Deployment name
-        "api_version": "2024-02-01",
-        "max_tokens": 16000,  # Maximum within Azure OpenAI limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    },
-    
-    # Anthropic configuration (optimized for complete SQL generation)
-    "anthropic": {
-        "api_key": "",  # Anthropic API key (can also use environment variable ANTHROPIC_API_KEY)
-        "model": "claude-3-5-sonnet-20241022",  # claude-3-5-sonnet-20241022, claude-3-opus-20240229
-        "max_tokens": 16000,  # Maximum within Anthropic limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    }
-}
-
-print("🤖 LLM endpoint configuration completed")
-print(f"🤖 LLM Provider: {LLM_CONFIG['provider']}")
-
-if LLM_CONFIG['provider'] == 'databricks':
-    print(f"🔗 Databricks endpoint: {LLM_CONFIG['databricks']['endpoint_name']}")
-    thinking_status = "Enabled" if LLM_CONFIG['databricks'].get('thinking_enabled', False) else "Disabled"
-    thinking_budget = LLM_CONFIG['databricks'].get('thinking_budget_tokens', 65536)
-    max_tokens = LLM_CONFIG['databricks'].get('max_tokens', 131072)
-    print(f"🧠 Extended thinking mode: {thinking_status} (budget: {thinking_budget:,} tokens)")
-    print(f"📊 Maximum tokens: {max_tokens:,} tokens ({max_tokens//1024}K)")
-    if not LLM_CONFIG['databricks'].get('thinking_enabled', False):
-        print("⚡ Fast execution mode: Skip thinking process for rapid result generation")
-elif LLM_CONFIG['provider'] == 'openai':
-    print(f"🔗 OpenAI model: {LLM_CONFIG['openai']['model']}")
-elif LLM_CONFIG['provider'] == 'azure_openai':
-    print(f"🔗 Azure OpenAI deployment: {LLM_CONFIG['azure_openai']['deployment_name']}")
-elif LLM_CONFIG['provider'] == 'anthropic':
-    print(f"🔗 Anthropic model: {LLM_CONFIG['anthropic']['model']}")
-
-print()
-print("💡 LLM provider switching examples:")
-print('   LLM_CONFIG["provider"] = "openai"      # Switch to OpenAI GPT-4')
-print('   LLM_CONFIG["provider"] = "anthropic"   # Switch to Anthropic Claude')
-print('   LLM_CONFIG["provider"] = "azure_openai" # Switch to Azure OpenAI')
-print()
-print("🧠 Databricks extended thinking mode configuration examples:")
-print('   LLM_CONFIG["databricks"]["thinking_enabled"] = False  # Disable extended thinking mode (default, fast execution)')
-print('   LLM_CONFIG["databricks"]["thinking_enabled"] = True   # Enable extended thinking mode (detailed analysis only)')
-print('   LLM_CONFIG["databricks"]["thinking_budget_tokens"] = 65536  # Thinking token budget (64K)')
-print('   LLM_CONFIG["databricks"]["max_tokens"] = 131072  # Maximum tokens (128K)')
-print()
-
-# Import necessary libraries
-try:
-    import requests
-except ImportError:
-    print("Warning: requests is not installed, some features may not work")
-    requests = None
-import os
-try:
-    from pyspark.sql import SparkSession
-except ImportError:
-    print("Warning: pyspark is not installed")
-    SparkSession = None
-    print("✅ Spark Version: Not available")
-
-# Safely retrieve Databricks Runtime information
-try:
-    if spark is not None:
-        runtime_version = spark.conf.get('spark.databricks.clusterUsageTags.sparkVersion')
-    print(f"✅ Databricks Runtime: {runtime_version}")
-except Exception:
-    try:
-        # Retrieve DBR information using alternative method
-        dbr_version = spark.conf.get('spark.databricks.clusterUsageTags.clusterName', 'Unknown')
-        print(f"✅ Databricks Cluster: {dbr_version}")
-    except Exception:
-        print("✅ Databricks Environment: Skipped configuration information retrieval")
 
 # COMMAND ----------
 
