@@ -13767,6 +13767,9 @@ def execute_iterative_optimization_with_degradation_analysis(original_query: str
             })
             continue
         
+        # ✅ 自動修正の結果得られた最終クエリを反映
+        current_query = explain_result.get('final_query', current_query)
+        
         # パフォーマンス比較実行
         print(f"🔍 Attempt {attempt_num}: Executing performance degradation detection")
         
