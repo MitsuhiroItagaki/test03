@@ -122,9 +122,26 @@ ENHANCED_ERROR_HANDLING = 'Y'
 # - 'N': No intermediate result saving (reduces file output)
 SAVE_INTERMEDIATE_RESULTS = 'Y'
 
-# 🎯 STAGED_JUDGMENT_MODE: Use staged performance judgment with fallback strategies
-# - 'Y': Use 3-stage progressive analysis with partial result utilization
-# - 'N': Use traditional single-stage comprehensive judgment
+# 🎯 STAGED_JUDGMENT_MODE: 段階的パフォーマンス判定（フォールバック含む）
+# - 'Y': 3段階の段階的分析＋フォールバックを有効化
+# - 'N': 従来の単一ステージの包括的判定のみ
+# 詳細:
+# 1) Stage 1 基本比較: total_size_bytes と row_count の比率から basic_ratio を算出。
+#    - 推奨: basic_ratio > 1.05 で 'use_original'、それ以外は 'use_optimized'
+#    - 中間保存キー: 'stage1_basic'
+# 2) Stage 2 詳細分析: scan_operations と join_operations の比率から operations_ratio を算出。
+#    - 中間保存キー: 'stage2_detailed'
+# 3) Stage 3 包括判定: comprehensive_performance_judgment を実行し包括指標（comprehensive_cost_ratio 等）を取得。
+#    - 中間保存キー: 'stage3_comprehensive'
+# フォールバックの順序:
+# - Stage 3 が成功 → その結果を最終判定として採用
+# - Stage 1 と Stage 2 が成功 → 両者の平均比率で最終判定（improvement_level='STAGE_1_2_COMBINED'）
+# - Stage 1 のみ成功 → basic_ratio に基づき判定（improvement_level='STAGE_1_BASIC_ONLY'）
+# - 全て失敗 → 安全側フォールバック（comprehensive_cost_ratio=1.0, recommendation='use_original', improvement_level='ALL_STAGES_FAILED'）
+# 付記:
+# - SAVE_INTERMEDIATE_RESULTS='Y' 時は各ステージ結果と最終判定を debug_intermediate_performance_*.json などに保存
+# - 戻り値には 'comprehensive_analysis' を含み、フォールバック時は fallback_mode や stage_results を格納
+# - STAGED_JUDGMENT_MODE != 'Y' の場合は従来方式（包括判定のみ）を使用
 STAGED_JUDGMENT_MODE = 'Y'
 
 # ⚠️ STRICT_VALIDATION_MODE: Enable strict input validation for metrics
