@@ -1,0 +1,83 @@
+================================================================================
+📊 重み付けシステム詳細分析ログ
+================================================================================
+
+📂 参照ファイル:
+   Original SQL file           : output_original_query_20250810-074554.sql
+   Original EXPLAIN COST file  : output_explain_cost_original_performance_check_20250810-074637.txt
+   Optimized EXPLAIN COST file : output_explain_cost_optimized_attempt_3_20250810-074736.txt
+
+🎯 メトリクス重み設定:
+   Data Processing                : 25.00% (0.250)
+   Operation Complexity           : 20.00% (0.200)
+   Memory Efficiency              : 20.00% (0.200)
+   Spill Management               : 15.00% (0.150)
+   Parallelism                    : 12.00% (0.120)
+   Partitioning Efficiency        : 8.00% (0.080)
+
+📊 コンポーネント比率分析:
+   Data Processing           : 1.0000 (+0.0%)
+   Operation Complexity      : 0.8333 (-16.7%)
+   Memory Efficiency         : 0.8061 (-19.4%)
+   Spill Management          : 0.7522 (-24.8%)
+   Parallelism               : 1.0000 (+0.0%)
+   Partitioning Efficiency   : 0.2000 (-80.0%)
+
+🧮 最終判定計算:
+   基本総合比率       : 0.8267
+   スピル調整係数     : 1.000
+   最終総合比率       : 0.8267
+   最終改善率         : +17.33%
+
+🎯 最終判定結果:
+   判定レベル         : ✅ 重要改善 (SIGNIFICANT)
+   推奨アクション     : 最適化クエリを推奨
+   判定根拠           : 最終比率 0.8267 による判定
+
+📋 詳細メトリクス:
+   Data Size Ratio           : 1.0000 (+0.0%)
+   Rows Ratio                : 1.0000 (+0.0%)
+   Scan Ratio                : 1.0000 (+0.0%)
+   Join Ratio                : 0.6667 (-33.3%)
+   Memory Ratio              : 1.0000 (+0.0%)
+   Spill Risk Ratio          : 0.6768 (-32.3%)
+   Estimated Spill Ratio     : 0.6304 (-37.0%)
+   Memory Pressure Ratio     : 0.6667 (-33.3%)
+   Spill Probability Ratio   : 1.0000 (+0.0%)
+   Shuffle Ratio             : 1.0000 (+0.0%)
+   Hash Partition Ratio      : 0.0000 (-100.0%)
+   Total Partition Ratio     : 0.0002 (-100.0%)
+
+🧾 判定対象クエリ:
+
+【元クエリ】
+-- 📋 オリジナルクエリ（プロファイラーデータから抽出）
+-- 抽出日時: 2025-08-10 07:45:54
+-- ファイル: output_original_query_20250810-074554.sql
+-- クエリ文字数: 163
+
+-- 🗂️ カタログ・スキーマ設定（自動追加）
+USE CATALOG tpcds;
+USE SCHEMA tpcds_sf1000_delta_lc;
+
+-- 🔍 オリジナルクエリ
+SELECT /*+ SHUFFLE_HASH(T2) */
+  T1.ID, 
+  T2.val,
+  T1.cs_net_paid
+FROM detail_itagaki as T1
+JOIN master_itagaki as T2
+  ON T1.ID = T2.ID
+ORDER BY 2 desc
+limit 10
+
+【最適化クエリ】
+SELECT /*+ SHUFFLE_HASH(T2) */
+  T1.ID, 
+  T2.val,
+  T1.cs_net_paid
+FROM detail_itagaki as T1
+JOIN master_itagaki as T2
+  ON T1.ID = T2.ID
+ORDER BY T2.val DESC
+LIMIT 10
