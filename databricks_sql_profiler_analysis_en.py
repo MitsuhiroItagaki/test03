@@ -384,19 +384,19 @@ MAX_OPTIMIZATION_ATTEMPTS = 3
 # 🌐 Multilingual message dictionary
 MESSAGES = {
     'ja': {
-        'bottleneck_title': 'Databricks SQL Profiler Bottleneck Analysis Results',
-        'query_id': 'Query ID',
-        'analysis_time': 'Analysis Date/Time',
-        'execution_time': 'Execution Time',
-        'sql_optimization_report': 'SQL Optimization Report',
-        'optimization_time': 'Optimization Date/Time',
-        'original_file': 'Original File',
-        'optimized_file': 'Optimized File',
-        'optimization_analysis': 'Optimization Analysis Results',
-        'performance_metrics': 'Performance Metrics Reference Information',
-        'read_data': 'Data Read',
-        'spill': 'Spill',
-        'top10_processes': 'TOP10 Most Time-Consuming Processes'
+        'bottleneck_title': 'Databricks SQL Profiler ボトルネック分析結果',
+        'query_id': 'クエリID',
+        'analysis_time': '分析日時',
+        'execution_time': '実行時間',
+        'sql_optimization_report': 'SQL最適化レポート',
+        'optimization_time': '最適化日時',
+        'original_file': '元ファイル',
+        'optimized_file': '最適化後ファイル',
+        'optimization_analysis': '最適化分析結果',
+        'performance_metrics': 'パフォーマンス指標の参照情報',
+        'read_data': 'データ読み取り',
+        'spill': 'スピル',
+        'top10_processes': '処理時間が長い上位10プロセス'
     },
     'en': {
         'bottleneck_title': 'Databricks SQL Profiler Bottleneck Analysis Results',
