@@ -150,118 +150,6 @@ STRICT_VALIDATION_MODE = 'N'
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## 🤖 LLM Endpoint Configuration
-# MAGIC
-# MAGIC This cell performs the following configurations:
-# MAGIC - LLM provider selection (Databricks/OpenAI/Azure/Anthropic)
-# MAGIC - Connection settings for each provider
-# MAGIC - Required library imports
-
-# COMMAND ----------
-
-# 🤖 LLM Endpoint Configuration
-LLM_CONFIG = {
-    # Endpoint type: 'databricks', 'openai', 'azure_openai', 'anthropic'
-    "provider": "databricks",
-    
-    # Databricks Model Serving configuration (high-speed execution priority)
-    "databricks": {
-        "endpoint_name": "databricks-claude-3-7-sonnet",  # Model Serving endpoint name
-        "max_tokens": 131072,  # 128K tokens (Claude 3.7 Sonnet maximum limit)
-        "temperature": 0.0,    # For deterministic output (0.1→0.0)
-        # "thinking_enabled": False,  # Extended thinking mode (default: disabled - high-speed execution priority) - Claude 3 Sonnet only
-        # "thinking_budget_tokens": 65536  # Thinking token budget 64K tokens (used only when enabled) - Claude 3 Sonnet only
-    },
-    
-    # OpenAI configuration (optimized for complete SQL generation)
-    "openai": {
-        "api_key": "",  # OpenAI API key (can also use environment variable OPENAI_API_KEY)
-        "model": "gpt-4o",  # gpt-4o, gpt-4-turbo, gpt-3.5-turbo
-        "max_tokens": 16000,  # Maximum within OpenAI limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    },
-    
-    # Azure OpenAI configuration (optimized for complete SQL generation)
-    "azure_openai": {
-        "api_key": "",  # Azure OpenAI API key (can also use environment variable AZURE_OPENAI_API_KEY)
-        "endpoint": "",  # https://your-resource.openai.azure.com/
-        "deployment_name": "",  # Deployment name
-        "api_version": "2024-02-01",
-        "max_tokens": 16000,  # Maximum within Azure OpenAI limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    },
-    
-    # Anthropic configuration (optimized for complete SQL generation)
-    "anthropic": {
-        "api_key": "",  # Anthropic API key (can also use environment variable ANTHROPIC_API_KEY)
-        "model": "claude-3-5-sonnet-20241022",  # claude-3-5-sonnet-20241022, claude-3-opus-20240229
-        "max_tokens": 16000,  # Maximum within Anthropic limits
-        "temperature": 0.0    # For deterministic output (0.1→0.0)
-    }
-}
-
-print("🤖 LLM endpoint configuration completed")
-print(f"🤖 LLM Provider: {LLM_CONFIG['provider']}")
-
-if LLM_CONFIG['provider'] == 'databricks':
-    print(f"🔗 Databricks endpoint: {LLM_CONFIG['databricks']['endpoint_name']}")
-    thinking_status = "Enabled" if LLM_CONFIG['databricks'].get('thinking_enabled', False) else "Disabled"
-    thinking_budget = LLM_CONFIG['databricks'].get('thinking_budget_tokens', 65536)
-    max_tokens = LLM_CONFIG['databricks'].get('max_tokens', 131072)
-    print(f"🧠 Extended thinking mode: {thinking_status} (budget: {thinking_budget:,} tokens)")
-    print(f"📊 Maximum tokens: {max_tokens:,} tokens ({max_tokens//1024}K)")
-    if not LLM_CONFIG['databricks'].get('thinking_enabled', False):
-        print("⚡ Fast execution mode: Skip thinking process for rapid result generation")
-elif LLM_CONFIG['provider'] == 'openai':
-    print(f"🔗 OpenAI model: {LLM_CONFIG['openai']['model']}")
-elif LLM_CONFIG['provider'] == 'azure_openai':
-    print(f"🔗 Azure OpenAI deployment: {LLM_CONFIG['azure_openai']['deployment_name']}")
-elif LLM_CONFIG['provider'] == 'anthropic':
-    print(f"🔗 Anthropic model: {LLM_CONFIG['anthropic']['model']}")
-
-print()
-print("💡 LLM provider switching examples:")
-print('   LLM_CONFIG["provider"] = "openai"      # Switch to OpenAI GPT-4')
-print('   LLM_CONFIG["provider"] = "anthropic"   # Switch to Anthropic Claude')
-print('   LLM_CONFIG["provider"] = "azure_openai" # Switch to Azure OpenAI')
-print()
-print("🧠 Databricks extended thinking mode configuration examples:")
-print('   LLM_CONFIG["databricks"]["thinking_enabled"] = False  # Disable extended thinking mode (default, fast execution)')
-print('   LLM_CONFIG["databricks"]["thinking_enabled"] = True   # Enable extended thinking mode (detailed analysis only)')
-print('   LLM_CONFIG["databricks"]["thinking_budget_tokens"] = 65536  # Thinking token budget (64K)')
-print('   LLM_CONFIG["databricks"]["max_tokens"] = 131072  # Maximum tokens (128K)')
-print()
-
-# Import necessary libraries
-try:
-    import requests
-except ImportError:
-    print("Warning: requests is not installed, some features may not work")
-    requests = None
-import os
-try:
-    from pyspark.sql import SparkSession
-except ImportError:
-    print("Warning: pyspark is not installed")
-    SparkSession = None
-    print("✅ Spark Version: Not available")
-
-# Safely retrieve Databricks Runtime information
-try:
-    if spark is not None:
-        runtime_version = spark.conf.get('spark.databricks.clusterUsageTags.sparkVersion')
-    print(f"✅ Databricks Runtime: {runtime_version}")
-except Exception:
-    try:
-        # Retrieve DBR information using alternative method
-        dbr_version = spark.conf.get('spark.databricks.clusterUsageTags.clusterName', 'Unknown')
-        print(f"✅ Databricks Cluster: {dbr_version}")
-    except Exception:
-        print("✅ Databricks Environment: Skipped configuration information retrieval")
-
-# COMMAND ----------
-
 # === 🎯 Query Optimization Points Extraction Functions ===
 
 def extract_optimization_points_from_query(query: str, trial_type: str, attempt_num: int) -> str:
@@ -578,6 +466,118 @@ from datetime import datetime
 
 print("✅ Basic library import completed")
 print("🚀 Please proceed to the next cell")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 🤖 LLM Endpoint Configuration
+# MAGIC
+# MAGIC This cell performs the following configurations:
+# MAGIC - LLM provider selection (Databricks/OpenAI/Azure/Anthropic)
+# MAGIC - Connection settings for each provider
+# MAGIC - Required library imports
+
+# COMMAND ----------
+
+# 🤖 LLM Endpoint Configuration
+LLM_CONFIG = {
+    # Endpoint type: 'databricks', 'openai', 'azure_openai', 'anthropic'
+    "provider": "databricks",
+    
+    # Databricks Model Serving configuration (high-speed execution priority)
+    "databricks": {
+        "endpoint_name": "databricks-claude-3-7-sonnet",  # Model Serving endpoint name
+        "max_tokens": 131072,  # 128K tokens (Claude 3.7 Sonnet maximum limit)
+        "temperature": 0.0,    # For deterministic output (0.1→0.0)
+        # "thinking_enabled": False,  # Extended thinking mode (default: disabled - high-speed execution priority) - Claude 3 Sonnet only
+        # "thinking_budget_tokens": 65536  # Thinking token budget 64K tokens (used only when enabled) - Claude 3 Sonnet only
+    },
+    
+    # OpenAI configuration (optimized for complete SQL generation)
+    "openai": {
+        "api_key": "",  # OpenAI API key (can also use environment variable OPENAI_API_KEY)
+        "model": "gpt-4o",  # gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+        "max_tokens": 16000,  # Maximum within OpenAI limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    },
+    
+    # Azure OpenAI configuration (optimized for complete SQL generation)
+    "azure_openai": {
+        "api_key": "",  # Azure OpenAI API key (can also use environment variable AZURE_OPENAI_API_KEY)
+        "endpoint": "",  # https://your-resource.openai.azure.com/
+        "deployment_name": "",  # Deployment name
+        "api_version": "2024-02-01",
+        "max_tokens": 16000,  # Maximum within Azure OpenAI limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    },
+    
+    # Anthropic configuration (optimized for complete SQL generation)
+    "anthropic": {
+        "api_key": "",  # Anthropic API key (can also use environment variable ANTHROPIC_API_KEY)
+        "model": "claude-3-5-sonnet-20241022",  # claude-3-5-sonnet-20241022, claude-3-opus-20240229
+        "max_tokens": 16000,  # Maximum within Anthropic limits
+        "temperature": 0.0    # For deterministic output (0.1→0.0)
+    }
+}
+
+print("🤖 LLM endpoint configuration completed")
+print(f"🤖 LLM Provider: {LLM_CONFIG['provider']}")
+
+if LLM_CONFIG['provider'] == 'databricks':
+    print(f"🔗 Databricks endpoint: {LLM_CONFIG['databricks']['endpoint_name']}")
+    thinking_status = "Enabled" if LLM_CONFIG['databricks'].get('thinking_enabled', False) else "Disabled"
+    thinking_budget = LLM_CONFIG['databricks'].get('thinking_budget_tokens', 65536)
+    max_tokens = LLM_CONFIG['databricks'].get('max_tokens', 131072)
+    print(f"🧠 Extended thinking mode: {thinking_status} (budget: {thinking_budget:,} tokens)")
+    print(f"📊 Maximum tokens: {max_tokens:,} tokens ({max_tokens//1024}K)")
+    if not LLM_CONFIG['databricks'].get('thinking_enabled', False):
+        print("⚡ Fast execution mode: Skip thinking process for rapid result generation")
+elif LLM_CONFIG['provider'] == 'openai':
+    print(f"🔗 OpenAI model: {LLM_CONFIG['openai']['model']}")
+elif LLM_CONFIG['provider'] == 'azure_openai':
+    print(f"🔗 Azure OpenAI deployment: {LLM_CONFIG['azure_openai']['deployment_name']}")
+elif LLM_CONFIG['provider'] == 'anthropic':
+    print(f"🔗 Anthropic model: {LLM_CONFIG['anthropic']['model']}")
+
+print()
+print("💡 LLM provider switching examples:")
+print('   LLM_CONFIG["provider"] = "openai"      # Switch to OpenAI GPT-4')
+print('   LLM_CONFIG["provider"] = "anthropic"   # Switch to Anthropic Claude')
+print('   LLM_CONFIG["provider"] = "azure_openai" # Switch to Azure OpenAI')
+print()
+print("🧠 Databricks extended thinking mode configuration examples:")
+print('   LLM_CONFIG["databricks"]["thinking_enabled"] = False  # Disable extended thinking mode (default, fast execution)')
+print('   LLM_CONFIG["databricks"]["thinking_enabled"] = True   # Enable extended thinking mode (detailed analysis only)')
+print('   LLM_CONFIG["databricks"]["thinking_budget_tokens"] = 65536  # Thinking token budget (64K)')
+print('   LLM_CONFIG["databricks"]["max_tokens"] = 131072  # Maximum tokens (128K)')
+print()
+
+# Import necessary libraries
+try:
+    import requests
+except ImportError:
+    print("Warning: requests is not installed, some features may not work")
+    requests = None
+import os
+try:
+    from pyspark.sql import SparkSession
+except ImportError:
+    print("Warning: pyspark is not installed")
+    SparkSession = None
+    print("✅ Spark Version: Not available")
+
+# Safely retrieve Databricks Runtime information
+try:
+    if spark is not None:
+        runtime_version = spark.conf.get('spark.databricks.clusterUsageTags.sparkVersion')
+    print(f"✅ Databricks Runtime: {runtime_version}")
+except Exception:
+    try:
+        # Retrieve DBR information using alternative method
+        dbr_version = spark.conf.get('spark.databricks.clusterUsageTags.clusterName', 'Unknown')
+        print(f"✅ Databricks Cluster: {dbr_version}")
+    except Exception:
+        print("✅ Databricks Environment: Skipped configuration information retrieval")
 
 # COMMAND ----------
 
@@ -11198,8 +11198,9 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     if re.search(r',\s*,', sql_query):
         return False
     
-    # 不正な空白パターン（過度に厳しかったため不合格条件から除外）
-    # インデントや整形により5つ以上の空白が現れるのは一般的なため、ここでは判定に使用しない
+    # 不正な空白パターン
+    if re.search(r'\s{5,}', sql_query):  # 5個以上の連続する空白
+        return False
     
     return True
 
@@ -11273,9 +11274,10 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
                 if validate_final_sql_syntax(optimized_sql_clean):
                     f.write(optimized_sql_clean)
                 else:
-                    # 警告のみ付与しつつ、SQL自体は出力（ユーザーが修正可能な形で保存）
-                    f.write("-- ⚠️ 自動検証で警告が検出されました。実行前にSQLを確認してください。\n")
-                    f.write(optimized_sql_clean)
+                    f.write("-- ⚠️ 構文エラーが検出されました。手動で確認してください。\n")
+                    f.write(f"-- 元のSQL:\n{optimized_sql_clean}\n")
+                    f.write("-- 以下は最適化分析の全結果です:\n\n")
+                    f.write(f"/*\n{optimized_result_main_content}\n*/")
             else:
                 f.write("-- ⚠️ SQLコードの自動抽出に失敗しました\n")
                 f.write("-- 以下は最適化分析の全結果です:\n\n")
@@ -12180,10 +12182,6 @@ def calculate_comprehensive_cost_ratio(original_metrics, optimized_metrics):
     """
     すべてのメトリクスを考慮した総合コスト比率を計算
     """
-    # Suppress verbose detailed analysis console logs when PRINT_ONLY_FINAL_JUDGMENT == 'Y'
-    if globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
-        def print(*args, **kwargs):
-            return
     # メトリクス重み設定（重要度に基づく）
     weights = {
         'data_processing_weight': 0.25,    # データサイズ + 行数
@@ -12568,24 +12566,23 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     SUBSTANTIAL_IMPROVEMENT_THRESHOLD = 0.80      # 20%以上の大幅改善
     MINOR_IMPROVEMENT_THRESHOLD = 0.95            # 5%以上の軽微改善
     
-    if not globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
-        print("\n" + "="*80)
-        print(t("🎯 パフォーマンス改善レベル判定", "🎯 Performance Improvement Level Judgment"))
-        print("="*80)
-
-        print(t(f"\n📏 判定閾値 (保守的アプローチ):",
-                     f"\n📏 Judgment Thresholds (Conservative Approach):"))
-        print(t(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)",
-                     f"   Substantial Improvement Threshold : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%+ improvement)"))
-        print(t(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)",
-                     f"   Significant Improvement Threshold : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%+ improvement)"))
-        print(t(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)",  
-                     f"   Minor Improvement Threshold       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%+ improvement)"))
-        print(t(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)",
-                     f"   Equivalent Performance Range     : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (within ±5%)"))
-        print(t(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)",
-                     f"   Degradation Detection Threshold  : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%+ degradation)"))
-
+    print("\n" + "="*80)
+    print(t("🎯 パフォーマンス改善レベル判定", "🎯 Performance Improvement Level Judgment"))
+    print("="*80)
+    
+    print(t(f"\n📏 判定閾値 (保守的アプローチ):",
+             f"\n📏 Judgment Thresholds (Conservative Approach):"))
+    print(t(f"   大幅改善閾値       : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%以上改善)",
+             f"   Substantial Improvement Threshold : {SUBSTANTIAL_IMPROVEMENT_THRESHOLD:.2f} (20%+ improvement)"))
+    print(t(f"   重要改善閾値       : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%以上改善)",
+             f"   Significant Improvement Threshold : {COMPREHENSIVE_IMPROVEMENT_THRESHOLD:.2f} (10%+ improvement)"))
+    print(t(f"   軽微改善閾値       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%以上改善)",  
+             f"   Minor Improvement Threshold       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} (5%+ improvement)"))
+    print(t(f"   等価性能範囲       : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (±5%以内)",
+             f"   Equivalent Performance Range     : {MINOR_IMPROVEMENT_THRESHOLD:.2f} - {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (within ±5%)"))
+    print(t(f"   悪化検出閾値       : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%以上悪化)",
+             f"   Degradation Detection Threshold  : {COMPREHENSIVE_DEGRADATION_THRESHOLD:.2f} (5%+ degradation)"))
+    
     # スピルリスク特別判定（スピルリスクが大幅減少した場合は高評価）
     spill_improvement_factor = 1.0
     spill_bonus_text = ""
@@ -12607,21 +12604,20 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
     # スピル補正を適用した最終比率
     final_comprehensive_ratio = comprehensive_ratio * spill_improvement_factor
     
-    if not globals().get('PRINT_ONLY_FINAL_JUDGMENT','N').upper() == 'Y':
-        print(t(f"\n🧮 最終判定計算:", f"\n🧮 Final Judgment Calculation:"))
-        print(t(f"   基本総合比率       : {comprehensive_ratio:.4f}",
-                     f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}"))
-        print(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}",
-                     f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}"))
-        print(t(f"   スピル調整詳細     : {spill_bonus_text}",
-                     f"   Spill Adjustment Details : {spill_bonus_text}"))
-        print(t(f"   最終総合比率       : {final_comprehensive_ratio:.4f}",
-                     f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}"))
-
-        improvement_pct = (1 - final_comprehensive_ratio) * 100
-        print(t(f"   最終改善率         : {improvement_pct:+.2f}%",
-                     f"   Final Improvement Rate  : {improvement_pct:+.2f}%"))
-
+    print(t(f"\n🧮 最終判定計算:", f"\n🧮 Final Judgment Calculation:"))
+    print(t(f"   基本総合比率       : {comprehensive_ratio:.4f}",
+             f"   Base Comprehensive Ratio : {comprehensive_ratio:.4f}"))
+    print(t(f"   スピル調整係数     : {spill_improvement_factor:.3f}",
+             f"   Spill Adjustment Factor  : {spill_improvement_factor:.3f}"))
+    print(t(f"   スピル調整詳細     : {spill_bonus_text}",
+             f"   Spill Adjustment Details : {spill_bonus_text}"))
+    print(t(f"   最終総合比率       : {final_comprehensive_ratio:.4f}",
+             f"   Final Comprehensive Ratio: {final_comprehensive_ratio:.4f}"))
+    
+    improvement_pct = (1 - final_comprehensive_ratio) * 100
+    print(t(f"   最終改善率         : {improvement_pct:+.2f}%",
+             f"   Final Improvement Rate  : {improvement_pct:+.2f}%"))
+    
     # 判定結果
     judgment = {
         'comprehensive_cost_ratio': final_comprehensive_ratio,
@@ -13243,13 +13239,6 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                             'stage2': stage2_result,
                             'stage3': stage3_result
                         }
-                    },
-                    'detailed_analysis': {
-                        'memory_ratio': 1.0,
-                        'cpu_ratio': 1.0,
-                        'io_ratio': 1.0,
-                        'fallback_mode': True,
-                        'note': 'Stage 1+2 combined fallback - using safe default values'
                     }
                 }
                 
@@ -13275,13 +13264,6 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                             'stage2': stage2_result,
                             'stage3': stage3_result
                         }
-                    },
-                    'detailed_analysis': {
-                        'memory_ratio': 1.0,
-                        'cpu_ratio': 1.0,
-                        'io_ratio': 1.0,
-                        'fallback_mode': True,
-                        'note': 'Stage 1-only fallback - using safe default values'
                     }
                 }
             
@@ -15102,8 +15084,7 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
         
     except Exception as e:
         error_message = str(e)
-        first_line = error_message.splitlines()[0] if error_message else ""
-        print(f"❌ Failed to execute EXPLAIN or EXPLAIN COST statement: {first_line}")
+        print(f"❌ Failed to execute EXPLAIN or EXPLAIN COST statement: {error_message}")
         
         # 真の致命的エラー（リトライ不可能なエラー）のチェック
         truly_fatal_errors = [
