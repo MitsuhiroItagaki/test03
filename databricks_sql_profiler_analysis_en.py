@@ -103,6 +103,9 @@ DEBUG_ENABLED = 'N'
 # 🔍 JSON Debug output setting (DEBUG_JSON_ENABLED: 'Y' = show JSON debug info, 'N' = hide JSON debug info)
 DEBUG_JSON_ENABLED = 'N'
 
+# 🧠 LLM trial summary setting (LLM_TRIAL_SUMMARY_ENABLED: 'Y' = include LLM summary of trial improvement directions in final report)
+LLM_TRIAL_SUMMARY_ENABLED = 'Y'
+
 # 🔧 Enhanced error handling settings
 # Controls detailed error analysis and intermediate result saving
 
@@ -9662,6 +9665,87 @@ def format_trial_history_summary(optimization_attempts: list, language: str = 'j
     
     return header + "\n" + "\n".join(trial_lines)
 
+
+def build_trial_summary_prompt(optimization_attempts: list, optimization_points_text: str = "", language: str = 'ja') -> str:
+    """
+    Build a compact LLM prompt to summarize improvement directions tried across optimization attempts.
+    The prompt intentionally avoids including full SQL; it focuses on statuses, ratios, and causes.
+    """
+    try:
+        import json
+        compact_attempts = []
+        for attempt in optimization_attempts or []:
+            compact_attempts.append({
+                'attempt': attempt.get('attempt'),
+                'status': attempt.get('status'),
+                'cost_ratio': attempt.get('cost_ratio'),
+                'memory_ratio': attempt.get('memory_ratio'),
+                'degradation_primary_cause': (attempt.get('degradation_analysis') or {}).get('primary_cause'),
+            })
+        attempts_json = json.dumps(compact_attempts, ensure_ascii=False)
+        points_text = optimization_points_text or "N/A"
+        if language == 'ja':
+            prompt = (
+                "目的: 次の試行履歴と抽出済みの最適化ポイントから、各試行で試した改善方針を最大7行で要約してください。\n"
+                "- 出力は箇条書き。各行は『方針: 根拠/背景（簡潔） | 結果(成功/悪化/改善不足)』の形式。\n"
+                "- SQLの具体構文は書かないでください（高レベルの方針のみ）。\n\n"
+                "試行履歴(JSON):\n" + attempts_json + "\n\n"
+                "補助情報（抽出済み最適化ポイント）:\n" + points_text + "\n\n"
+                "言語: 日本語"
+            )
+        else:
+            prompt = (
+                "Goal: From the following trial history and extracted optimization points, summarize the improvement directions tried in at most 7 bullets.\n"
+                "- Output bullets. Each line in the form: 'Direction: Rationale/Context (brief) | Outcome (success/degraded/insufficient)'.\n"
+                "- Do not include concrete SQL syntax; keep it high level.\n\n"
+                "Trial history (JSON):\n" + attempts_json + "\n\n"
+                "Auxiliary info (extracted optimization points):\n" + points_text + "\n\n"
+                "Language: English"
+            )
+        return prompt
+    except Exception as e:
+        return f"Prompt build error: {str(e)}"
+
+
+def summarize_trial_improvement_directions_with_llm(optimization_attempts: list, language: str = 'ja') -> str:
+    """
+    Summarize improvement directions of tried queries using LLM. Falls back to non-LLM summary if needed.
+    """
+    try:
+        enabled = globals().get('LLM_TRIAL_SUMMARY_ENABLED', 'Y')
+        if enabled.upper() != 'Y' or not optimization_attempts:
+            return format_trial_history_summary(optimization_attempts, language)
+        try:
+            points_text = load_optimization_points_summary()
+        except Exception:
+            points_text = ""
+        prompt = build_trial_summary_prompt(optimization_attempts, points_text, language)
+        provider = LLM_CONFIG.get('provider', 'databricks')
+        if provider == 'databricks':
+            result = _call_databricks_llm(prompt)
+        elif provider == 'openai':
+            result = _call_openai_llm(prompt)
+        elif provider == 'azure_openai':
+            result = _call_azure_openai_llm(prompt)
+        elif provider == 'anthropic':
+            result = _call_anthropic_llm(prompt)
+        else:
+            result = format_trial_history_summary(optimization_attempts, language)
+        try:
+            debug_enabled = globals().get('DEBUG_ENABLED', 'N')
+            if isinstance(result, str) and debug_enabled.upper() == 'Y':
+                from datetime import datetime
+                ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+                fname = f"output_trial_strategy_summary_{language}_{ts}.md"
+                with open(fname, 'w', encoding='utf-8') as f:
+                    f.write(result)
+        except Exception:
+            pass
+        return result if isinstance(result, str) else format_trial_history_summary(optimization_attempts, language)
+    except Exception as e:
+        base = format_trial_history_summary(optimization_attempts, language)
+        return base + f"\n\n⚠️ LLM要約に失敗したため簡易履歴を表示しました: {str(e)}"
+
 def generate_comprehensive_optimization_report(query_id: str, optimized_result: str, metrics: Dict[str, Any], analysis_result: str = "", performance_comparison: Dict[str, Any] = None, best_attempt_number: int = None, optimization_attempts: list = None, optimization_success: bool = None) -> str:
     """
     包括的な最適化レポートを生成
@@ -10055,7 +10139,11 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
 
 ## 🚀 4. SQL最適化分析結果
 
-{optimization_process_details}### 🎯 最適化実行方針
+{optimization_process_details}### 🧠 試行での改善方針（LLM要約）
+
+{summarize_trial_improvement_directions_with_llm(optimization_attempts or [], 'ja')}
+
+### 🎯 最適化実行方針
 
 {optimization_strategy}
 
@@ -10416,7 +10504,11 @@ Please check:
         report += f"""
 ## 🚀 4. SQL Optimization Analysis Results
 
-{optimization_process_details_en}### 🎯 Optimization Strategy
+{optimization_process_details_en}### 🧠 Trial Improvement Directions (LLM Summary)
+
+{summarize_trial_improvement_directions_with_llm(optimization_attempts or [], 'en')}
+
+### 🎯 Optimization Strategy
 
 {optimization_strategy_en}
 
