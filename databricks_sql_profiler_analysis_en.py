@@ -12796,19 +12796,18 @@ def comprehensive_performance_judgment(original_metrics, optimized_metrics):
                 metric_name = key.replace('_', ' ').title()
                 f.write(f"   {metric_name:25} : {ratio:.4f} ({(ratio-1)*100:+.1f}%)\n")
             
-            # 判定対象クエリをログ末尾に追記
+            # 判定対象となったクエリのみをログ末尾に追記
             f.write(t(f"\n🧾 判定対象クエリ:\n",
-                      f"\n🧾 Queries Used In Judgment:\n"))
-            if original_query_text:
-                f.write(t(f"\n【元クエリ】\n", f"\n[Original Query]\n"))
+                      f"\n🧾 Query Adopted By Judgment:\n"))
+            recommended = (judgment.get('recommendation') if isinstance(judgment, dict) else None) or 'use_original'
+            if recommended == 'use_optimized' and optimized_query_text:
+                f.write(t(f"\n【最適化クエリ（採用）】\n", f"\n[Optimized Query - Adopted]\n"))
+                f.write(optimized_query_text + "\n")
+            elif original_query_text:
+                f.write(t(f"\n【元クエリ（採用）】\n", f"\n[Original Query - Adopted]\n"))
                 f.write(original_query_text + "\n")
             else:
-                f.write(t(f"\n【元クエリ】取得できませんでした\n", f"\n[Original Query] Not Available\n"))
-            if optimized_query_text:
-                f.write(t(f"\n【最適化クエリ】\n", f"\n[Optimized Query]\n"))
-                f.write(optimized_query_text + "\n")
-            else:
-                f.write(t(f"\n【最適化クエリ】取得できませんでした\n", f"\n[Optimized Query] Not Available\n"))
+                f.write(t(f"\n【採用クエリ】取得できませんでした\n", f"\n[Adopted Query] Not Available\n"))
         
         print(t(f"\n💾 詳細ログファイル保存: {log_filename}",
                  f"\n💾 Detailed log file saved: {log_filename}"))
