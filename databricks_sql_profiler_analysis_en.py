@@ -240,12 +240,8 @@ except ImportError:
     print("Warning: requests is not installed, some features may not work")
     requests = None
 import os
-try:
-    from pyspark.sql import SparkSession
-except ImportError:
-    print("Warning: pyspark is not installed")
-    SparkSession = None
-    print("✅ Spark Version: Not available")
+import re
+# pyspark SparkSession import disabled (not used in this script)
 
 # Safely retrieve Databricks Runtime information
 try:
@@ -276,8 +272,6 @@ def extract_optimization_points_from_query(query: str, trial_type: str, attempt_
     Returns:
         str: 抽出された最適化ポイント
     """
-    import re
-    
     optimization_points = []
     
     # 1. インデックス関連の最適化
@@ -506,42 +500,7 @@ MAX_OPTIMIZATION_ATTEMPTS = 1
 # OUTPUT_LANGUAGE = 'en'  # Output files in English
 
 # 🌐 Multilingual message dictionary
-MESSAGES = {
-    'ja': {
-        'bottleneck_title': 'Databricks SQL Profiler ボトルネック分析結果',
-        'query_id': 'クエリID',
-        'analysis_time': '分析日時',
-        'execution_time': '実行時間',
-        'sql_optimization_report': 'SQL最適化レポート',
-        'optimization_time': '最適化日時',
-        'original_file': '元ファイル',
-        'optimized_file': '最適化後ファイル',
-        'optimization_analysis': '最適化分析結果',
-        'performance_metrics': 'パフォーマンス指標の参照情報',
-        'read_data': 'データ読み取り',
-        'spill': 'スピル',
-        'top10_processes': '処理時間が長い上位10プロセス'
-    },
-    'en': {
-        'bottleneck_title': 'Databricks SQL Profiler Bottleneck Analysis Results',
-        'query_id': 'Query ID',
-        'analysis_time': 'Analysis Time',
-        'execution_time': 'Execution Time',
-        'sql_optimization_report': 'SQL Optimization Report',
-        'optimization_time': 'Optimization Time',
-        'original_file': 'Original File',
-        'optimized_file': 'Optimized File',
-        'optimization_analysis': 'Optimization Analysis Results',
-        'performance_metrics': 'Performance Metrics Reference',
-        'read_data': 'Data Read',
-        'spill': 'Spill',
-        'top10_processes': 'Top 10 Most Time-Consuming Processes'
-    }
-}
-
-def get_message(key: str) -> str:
-    """Get multilingual message"""
-    return MESSAGES.get(OUTPUT_LANGUAGE, MESSAGES['ja']).get(key, key)
+# Unused multilingual message dictionary removed (using t(ja, en) helper instead)
 
 # Language toggle helper for inline log strings
 def t(ja: str, en: str) -> str:
@@ -568,11 +527,7 @@ print("=" * 50)
 
 # ⚙️ Basic environment configuration
 import json
-try:
-    import pandas as pd
-except ImportError:
-    print("Warning: pandas is not installed, some features may not work")
-    pd = None
+# pandas is not used; import removed to avoid unnecessary dependency
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -1073,7 +1028,6 @@ def get_meaningful_node_name(node: Dict[str, Any], extracted_metrics: Dict[str, 
     # If table name cannot be extracted from metadata, infer from node name
     if not table_name and ('scan' in enhanced_name.lower() or 'data source' in enhanced_name.lower()):
         # Infer table name from node name
-        import re
         
         # Format like "Scan tpcds.tpcds_sf1000_delta_lc.customer"
         table_patterns = [
@@ -1133,33 +1087,6 @@ def get_meaningful_node_name(node: Dict[str, Any], extracted_metrics: Dict[str, 
     
     return enhanced_name
 
-def find_related_specific_nodes(target_node_id: str, nodes: list, edges: list) -> list:
-    """Search for specific processing nodes related to the specified node"""
-    
-    # Identify related nodes from edges
-    related_node_ids = set()
-    
-    # Directly connected nodes
-    for edge in edges:
-        from_id = edge.get('fromId', '')
-        to_id = edge.get('toId', '')
-        
-        if from_id == target_node_id:
-            related_node_ids.add(to_id)
-        elif to_id == target_node_id:
-            related_node_ids.add(from_id)
-    
-    # Get details of related nodes
-    related_nodes = []
-    for node in nodes:
-        node_id = node.get('id', '')
-        if node_id in related_node_ids:
-            node_name = node.get('name', '')
-            # Select only nodes with specific process names
-            if is_specific_process_name(node_name):
-                related_nodes.append(node)
-    
-    return related_nodes
 
 def is_specific_process_name(name: str) -> bool:
     """Determine if it's a specific processing name"""
@@ -1186,31 +1113,6 @@ def is_specific_process_name(name: str) -> bool:
     
     return True
 
-def get_most_specific_process_name(nodes: list) -> str:
-    """Select the most specific processing name"""
-    if not nodes:
-        return ""
-    
-    # Priority: More specific and meaningful process names
-    priority_keywords = [
-        'columnar to row', 'row to columnar', 'filter', 'project',
-        'hash join', 'broadcast join', 'sort merge join',
-        'hash aggregate', 'sort aggregate', 'grouping aggregate'
-    ]
-    
-    for keyword in priority_keywords:
-        for node in nodes:
-            node_name = node.get('name', '').lower()
-            if keyword in node_name:
-                return node.get('name', '')
-    
-    # Fallback: First specific node name
-    for node in nodes:
-        node_name = node.get('name', '')
-        if is_specific_process_name(node_name):
-            return node_name
-    
-    return ""
 
 def get_most_specific_process_name_from_list(node_names: list) -> str:
     """Select the most specific processing name from a list of node names"""
@@ -2677,7 +2579,6 @@ def extract_liquid_clustering_data(profiler_data: Dict[str, Any], metrics: Dict[
             
             # テーブル名が見つからない場合はノード名から推測
             if not table_name_from_node:
-                import re
                 table_patterns = [
                     r'[Ss]can\s+([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])',
                     r'([a-zA-Z_][a-zA-Z0-9_]*\.)+([a-zA-Z_][a-zA-Z0-9_]*)',
@@ -3148,7 +3049,6 @@ def validate_and_filter_clustering_recommendations(llm_analysis: str, extracted_
     Returns:
         str: Filtered and validated analysis text
     """
-    import re
     
     # Get current clustering keys for each table
     current_clustering = {}
@@ -4822,7 +4722,6 @@ def format_thinking_response(response) -> str:
     思考過程（thinking）とシグネチャ（signature）等の不要な情報は除外し、最終的な結論のみを表示
     JSON構造や不適切な文字列の露出を防止
     """
-    import re  # reモジュールのインポートを追加
     
     if not isinstance(response, list):
         # リストでない場合は文字列として処理し、クリーンアップ
@@ -4890,7 +4789,6 @@ def looks_like_json_structure(text):
 
 def clean_response_text(text):
     """Clean up response text"""
-    import re
     
     if not text or not isinstance(text, str):
         return ""
@@ -4931,7 +4829,6 @@ def clean_response_text(text):
 
 def is_valid_content(text):
     """Check if content is valid"""
-    import re
     
     if not text or len(text.strip()) < 10:
         return False
@@ -4953,7 +4850,6 @@ def is_valid_content(text):
 
 def final_quality_check(text):
     """Final quality check and cleanup"""
-    import re  # reモジュールのインポートを追加
     
     if not text:
         return "分析結果の抽出に失敗しました。"
@@ -4980,7 +4876,6 @@ def final_quality_check(text):
 
 def ensure_japanese_consistency(text):
     """Ensure Japanese text consistency"""
-    import re
     
     # 明らかに破損している部分を除去
     # 例: "正caientify="predicate_liquid_referencet1" のような破損文字列
@@ -5031,7 +4926,6 @@ def ensure_japanese_consistency(text):
 
 def ensure_english_consistency(text):
     """Ensure English text consistency"""
-    import re
     
     # 同様のクリーンアップを英語用に実装
     text = re.sub(r'[^\x00-\x7F\s]{10,}', '', text)  # 非ASCII文字の長い連続を除去
@@ -5848,7 +5742,6 @@ def extract_table_name_from_scan_node(node: Dict[str, Any]) -> str:
         output = node.get("output", "")
         if output:
             # パターン: [col1#123, col2#456] table_name
-            import re
             table_match = re.search(r'\]\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)', output)
             if table_match:
                 return table_match.group(1)
@@ -5936,7 +5829,6 @@ def extract_broadcast_table_names(profiler_data: Dict[str, Any], broadcast_nodes
         # 2. ノード名からテーブル名を推定
         if 'SCAN' in broadcast_node_name:
             # "Broadcast Scan delta orders" → "orders"
-            import re
             table_match = re.search(r'SCAN\s+(?:DELTA|PARQUET|JSON|CSV)?\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)', broadcast_node_name, re.IGNORECASE)
             if table_match:
                 table_names.add(table_match.group(1))
@@ -6220,24 +6112,6 @@ def estimate_uncompressed_size(compressed_size_mb: float, file_format: str = "pa
     
     return compressed_size_mb * compression_ratio
 
-def analyze_broadcast_feasibility(metrics: Dict[str, Any], original_query: str, plan_info: Dict[str, Any] = None) -> Dict[str, Any]:
-    """
-    BROADCASTヒントの適用可能性を分析（正確な30MB閾値適用）
-    """
-    broadcast_analysis = {
-        "is_join_query": False,
-        "broadcast_candidates": [],
-        "recommendations": [],
-        "feasibility": "not_applicable",
-        "reasoning": [],
-        "spark_threshold_mb": get_spark_broadcast_threshold(),
-        "compression_analysis": {},
-        "detailed_size_analysis": [],
-        "execution_plan_analysis": {},
-        "existing_broadcast_nodes": [],
-        "already_optimized": False,
-        "broadcast_applied_tables": []
-    }
     
     # クエリにJOINが含まれているかチェック
     query_upper = original_query.upper()
@@ -6674,7 +6548,6 @@ def extract_structured_physical_plan(physical_plan: str) -> Dict[str, Any]:
     Returns:
         Dict: Structured important information
     """
-    import re
     
     extracted = {
         "joins": [],           # JOIN情報（種類、条件、統計）
@@ -6841,7 +6714,6 @@ def extract_structured_cost_statistics(explain_cost_content: str) -> Dict[str, A
     Returns:
         Dict: Structured statistical information
     """
-    import re
     
     extracted = {
         "table_stats": {},      # Table-specific statistics (size, row count)
@@ -7216,7 +7088,6 @@ def parse_photon_explanation(photon_text: str) -> Dict[str, Any]:
                 # Non-bullet explanatory line
                 result["reasons"].append(ln)
     # Heuristic extraction of function/feature names from reasons
-    import re
     elements: List[str] = []
     for reason in result["reasons"]:
         # Capture function-like tokens abc(...)
@@ -8398,40 +8269,6 @@ def generate_top10_time_consuming_processes_report(extracted_metrics: Dict[str, 
     
     return "\n".join(report_lines)
 
-def save_execution_plan_analysis(plan_info: Dict[str, Any], output_dir: str = "/tmp") -> Dict[str, str]:
-    """
-    実行プラン分析結果をファイルに保存
-    
-    Args:
-        plan_info: extract_execution_plan_info()の結果
-        output_dir: 出力ディレクトリ
-        
-    Returns:
-        Dict: 保存されたファイル名の辞書
-    """
-    from datetime import datetime
-    import json
-    
-    # タイムスタンプ生成
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    
-    # ファイル名定義
-    plan_json_filename = f"output_execution_plan_analysis_{timestamp}.json"
-    plan_report_filename = f"output_execution_plan_report_{timestamp}.md"
-    
-    # JSON形式でプラン情報を保存
-    with open(plan_json_filename, 'w', encoding='utf-8') as f:
-        json.dump(plan_info, f, ensure_ascii=False, indent=2)
-    
-    # Markdown形式でプラン分析レポートを保存
-    with open(plan_report_filename, 'w', encoding='utf-8') as f:
-        report_content = generate_execution_plan_markdown_report(plan_info)
-        f.write(report_content)
-    
-    return {
-        'plan_json_file': plan_json_filename,
-        'plan_report_file': plan_report_filename
-    }
 
 def generate_execution_plan_markdown_report(plan_info: Dict[str, Any]) -> str:
     """
@@ -9854,7 +9691,6 @@ def generate_comprehensive_optimization_report(query_id: str, optimized_result: 
         analysis_result_str = str(analysis_result)
     
     # signature情報の除去
-    import re
     signature_pattern = r"'signature':\s*'[A-Za-z0-9+/=]{100,}'"
     analysis_result_str = re.sub(signature_pattern, "'signature': '[REMOVED]'", analysis_result_str)
     
@@ -10617,7 +10453,6 @@ Output the refined report following the rules above, without including any templ
             refined_report = format_thinking_response(refined_report)
         
         # signature情報の除去
-        import re
         signature_pattern = r"'signature':\s*'[A-Za-z0-9+/=]{100,}'"
         refined_report = re.sub(signature_pattern, "'signature': '[REMOVED]'", refined_report)
         
@@ -10645,7 +10480,6 @@ def validate_and_fix_sql_syntax(sql_query: str) -> str:
     Returns:
         str: 修正されたSQLクエリ
     """
-    import re
     
     if not sql_query or not sql_query.strip():
         return ""
@@ -10657,9 +10491,8 @@ def validate_and_fix_sql_syntax(sql_query: str) -> str:
     sql_query = fix_broadcast_hint_placement(sql_query)
 
     # 先頭 EXPLAIN/EXPLAIN COST の剥離（抽出段階で漏れた保険）
-    import re as _re_fix
-    sql_query = _re_fix.sub(r'^\s*EXPLAIN\s+COST\s+', '', sql_query, flags=_re_fix.IGNORECASE)
-    sql_query = _re_fix.sub(r'^\s*EXPLAIN\s+', '', sql_query, flags=_re_fix.IGNORECASE)
+    sql_query = re.sub(r'^\s*EXPLAIN\s+COST\s+', '', sql_query, flags=re.IGNORECASE)
+    sql_query = re.sub(r'^\s*EXPLAIN\s+', '', sql_query, flags=re.IGNORECASE)
     
     # 2. 不完全なSQL構文の検出と修正
     sql_query = fix_incomplete_sql_syntax(sql_query)
@@ -10682,7 +10515,6 @@ def fix_broadcast_hint_placement(sql_query: str) -> str:
     - 複数のBROADCASTヒントを統合
     - DISTINCT句の保持を確保
     """
-    import re
     
     # サブクエリ内部のBROADCASTヒントを検出と削除
     # パターン1: LEFT JOIN (SELECT /*+ BROADCAST(...) */ ... のパターン
@@ -10735,7 +10567,6 @@ def fix_join_broadcast_hint_placement(sql_query: str) -> str:
     JOIN句内のBROADCASTヒント配置エラーを強制修正（PARSE_SYNTAX_ERROR対策）
     ユーザー報告のエラーケース： join /*+ BROADCAST(i) */ item i ON ...
     """
-    import re
     
     try:
         # JOIN句内のBROADCASTヒントを検出・抽出
@@ -10850,7 +10681,6 @@ def enhance_error_correction_with_syntax_validation(corrected_query: str, origin
             # PARSE_SYNTAX_ERRORの場合は特に厳格にチェック
             
             # JOIN句内のBROADCASTヒントが残っているかチェック
-            import re
             join_broadcast_pattern = r'JOIN\s+/\*\+\s*BROADCAST\([^)]+\)\s*\*/'
             if re.search(join_broadcast_pattern, final_query, re.IGNORECASE | re.MULTILINE):
                 print("🚨 BROADCAST hints still remain in JOIN clauses after correction, using original query")
@@ -10880,7 +10710,6 @@ def fallback_performance_evaluation(original_explain: str, optimized_explain: st
     """
     
     try:
-        import re
         
         # プラン複雑度の評価
         def analyze_plan_complexity(explain_text):
@@ -11066,19 +10895,12 @@ def generate_fallback_performance_section(fallback_evaluation: Dict[str, Any], l
     return section
 
 
-def fix_common_ambiguous_references(sql_query: str) -> str:
-    """
-    【廃止】正規表現による修正は廃止 - LLMによる高度な修正に完全依存
-    """
-    print("🚫 Regex-based pre-correction discontinued: Relying on advanced LLM-based correction")
-    return sql_query
 
 
 def fix_incomplete_sql_syntax(sql_query: str) -> str:
     """
     不完全なSQL構文の検出と修正
     """
-    import re
     
     # 基本的なSQLキーワードの存在チェック
     has_select = bool(re.search(r'\bSELECT\b', sql_query, re.IGNORECASE))
@@ -11099,7 +10921,6 @@ def remove_sql_placeholders(sql_query: str) -> str:
     """
     プレースホルダーや省略記号の除去（SQLヒントは保持）
     """
-    import re
     
     # 一般的なプレースホルダーパターン（SQLヒントは除外）
     placeholders = [
@@ -11143,7 +10964,6 @@ def fix_basic_syntax_errors(sql_query: str) -> str:
     """
     基本的な構文エラーの修正
     """
-    import re
     
     # 1. NULLリテラルの型キャスト修正 - コメントアウト（冗長CAST生成の原因）
     # SELECT null as col01 → SELECT cast(null as String) as col01
@@ -11189,7 +11009,6 @@ def add_syntax_warnings(sql_query: str) -> str:
     """
     基本的な構文チェックと警告の追加
     """
-    import re
     
     warnings = []
     
@@ -11219,7 +11038,6 @@ def extract_broadcast_tables_from_sql(sql_query: str) -> list:
     """
     SQLクエリからBROADCASTされるべきテーブル名を抽出
     """
-    import re
     
     # 削除されたBROADCASTヒントからテーブル名を抽出
     broadcast_pattern = r'BROADCAST\(([^)]+)\)'
@@ -11240,7 +11058,6 @@ def validate_final_sql_syntax(sql_query: str) -> bool:
     Returns:
         bool: 構文が正しいと判定された場合True、問題がある場合False
     """
-    import re
     
     if not sql_query or not sql_query.strip():
         return False
@@ -11299,7 +11116,6 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     - LLMによるレポート推敲で読みやすい最終レポートを生成
     """
     
-    import re
     from datetime import datetime
     
     # thinking_enabled: Trueの場合にoptimized_resultがリストになることがあるため対応
@@ -11413,21 +11229,6 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     
     return result
 
-def demonstrate_execution_plan_size_extraction():
-    """
-    実行プランからのサイズ推定機能のデモンストレーション
-    """
-    print("🧪 Demo of table size estimation feature from execution plan")
-    print("-" * 50)
-    
-    # サンプルのプロファイラーデータ構造
-    sample_profiler_data = {
-        "executionPlan": {
-            "physicalPlan": {
-                "nodes": [
-                    {
-                        "nodeName": "Scan Delta orders",
-                        "id": "1",
                         "metrics": {
                             "estimatedSizeInBytes": 10485760,  # 10MB
                             "numFiles": 5,
@@ -11619,7 +11420,6 @@ def extract_select_from_ctas(query: str) -> str:
     Returns:
         str: AS以降の部分のみのクエリ、またはCTASでない場合は元のクエリ
     """
-    import re
     
     # クエリを正規化（改行・空白を統一）
     normalized_query = re.sub(r'\s+', ' ', query.strip())
@@ -11868,7 +11668,6 @@ def generate_optimized_query_with_error_feedback(original_query: str, analysis_r
         
         if "AMBIGUOUS_REFERENCE" in error_message.upper():
             # AMBIGUOUS_REFERENCEエラーの具体的対処
-            import re
             ambiguous_column_match = re.search(r'Reference `([^`]+)` is ambiguous', error_message)
             if ambiguous_column_match:
                 ambiguous_column = ambiguous_column_match.group(1)
@@ -11882,7 +11681,6 @@ def generate_optimized_query_with_error_feedback(original_query: str, analysis_r
             
         if "UNRESOLVED_COLUMN" in error_message.upper():
             # UNRESOLVED_COLUMNエラーの具体的対処
-            import re
             unresolved_match = re.search(r'column.*`([^`]+)`', error_message)
             if unresolved_match:
                 unresolved_column = unresolved_match.group(1)
@@ -12958,7 +12756,6 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
     }
     
     try:
-        import re
         
         # 🚨 EXPLAIN COST内容の妥当性チェック
         def validate_explain_cost_content(explain_cost_text, query_type):
@@ -13011,7 +12808,6 @@ def compare_query_performance(original_explain_cost: str, optimized_explain_cost
                 'exchange_count': 0             # 新規追加：Exchange/Shuffle操作数
             }
 
-            import re
 
             # ユニット付きサイズをバイトに変換
             def parse_size_to_bytes(value_str, unit_str):
@@ -13702,7 +13498,6 @@ def analyze_degradation_causes(performance_comparison: Dict[str, Any], original_
                 degradation_analysis['specific_issues'].append('Significant JOIN operations count increase')
                 
                 # JOIN数の具体的な増加を解析
-                import re
                 join_match = re.search(r'(\d+)\s*→\s*(\d+)', detail_str)
                 if join_match:
                     original_joins = int(join_match.group(1))
@@ -13790,7 +13585,6 @@ def analyze_explain_cost_differences(original_cost: str, optimized_cost: str) ->
     }
     
     try:
-        import re
         
         # BROADCAST関連の問題検出
         original_broadcasts = len(re.findall(r'broadcast', original_cost.lower()))
@@ -14840,7 +14634,6 @@ def extract_sql_from_llm_response(llm_response: str) -> str:
     Extract only SQL query part from LLM response (Enhanced version)
     分析テキストとSQLを正確に分離する改善版
     """
-    import re
     
     if not llm_response or not llm_response.strip():
         return ""
@@ -14927,9 +14720,8 @@ def clean_extracted_sql(sql_content: str) -> str:
     cleaned_sql = '\n'.join(cleaned_lines).strip()
     
     # 先頭に付いた EXPLAIN/EXPLAIN COST を除去して純粋なSELECT等に正規化
-    import re as _re
-    cleaned_sql = _re.sub(r'^\s*EXPLAIN\s+COST\s+', '', cleaned_sql, flags=_re.IGNORECASE)
-    cleaned_sql = _re.sub(r'^\s*EXPLAIN\s+', '', cleaned_sql, flags=_re.IGNORECASE)
+    cleaned_sql = re.sub(r'^\s*EXPLAIN\s+COST\s+', '', cleaned_sql, flags=re.IGNORECASE)
+    cleaned_sql = re.sub(r'^\s*EXPLAIN\s+', '', cleaned_sql, flags=re.IGNORECASE)
     
     return cleaned_sql
 
@@ -14939,7 +14731,6 @@ def extract_analysis_content_from_llm_response(llm_response: str) -> str:
     LLMレスポンスから分析結果部分を抽出
     SQLコードと分離して、分析レポート用のコンテンツを取得
     """
-    import re
     from datetime import datetime
     
     if not llm_response or not llm_response.strip():
@@ -15028,9 +14819,8 @@ def execute_explain_and_save_to_file(original_query: str, query_type: str = "ori
     query_for_explain = extract_select_from_ctas(original_query)
     
     # 事前正規化: 先頭に EXPLAIN / EXPLAIN COST が付いていれば剥がす
-    import re as _re_exec
-    query_for_explain = _re_exec.sub(r'^\s*EXPLAIN\s+COST\s+', '', query_for_explain, flags=_re_exec.IGNORECASE)
-    query_for_explain = _re_exec.sub(r'^\s*EXPLAIN\s+', '', query_for_explain, flags=_re_exec.IGNORECASE)
+    query_for_explain = re.sub(r'^\s*EXPLAIN\s+COST\s+', '', query_for_explain, flags=re.IGNORECASE)
+    query_for_explain = re.sub(r'^\s*EXPLAIN\s+', '', query_for_explain, flags=re.IGNORECASE)
     
     # EXPLAIN文とEXPLAIN COST文の生成
     explain_query = f"EXPLAIN {query_for_explain}"
@@ -15874,7 +15664,6 @@ def refine_report_content_with_llm(report_content: str) -> str:
         print(f"📊 Report size: {original_size:,} characters (executing refinement)")
     
     # Photon利用率の抽出と評価判定
-    import re
     photon_pattern = r'利用率[：:]\s*(\d+(?:\.\d+)?)%'
     photon_match = re.search(photon_pattern, report_content)
     
