@@ -11229,6 +11229,13 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
     
     return result
 
+    sample_profiler_data = {
+        "graphs": [
+            {
+                "nodes": [
+                    {
+                        "nodeName": "Scan Delta orders",
+                        "id": "1",
                         "metrics": {
                             "estimatedSizeInBytes": 10485760,  # 10MB
                             "numFiles": 5,
@@ -11239,7 +11246,7 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
                     },
                     {
                         "nodeName": "Scan Delta customers",
-                        "id": "2", 
+                        "id": "2",
                         "metrics": {
                             "estimatedSizeInBytes": 52428800,  # 50MB
                             "numFiles": 10,
@@ -11249,7 +11256,7 @@ def save_optimized_sql_files(original_query: str, optimized_result: str, metrics
                     }
                 ]
             }
-        }
+        ]
     }
     
     print("📊 Sample execution plan:")
